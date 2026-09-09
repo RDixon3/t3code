@@ -1211,7 +1211,16 @@ export const DesktopPreviewAutomationWaitForInputSchema = Schema.Struct({
 export const SystemSettingsPaneSchema = Schema.Literals(["full-disk-access"]);
 export type SystemSettingsPane = typeof SystemSettingsPaneSchema.Type;
 
+export const ServiceNowSdkStatusSchema = Schema.Struct({
+  installed: Schema.Boolean,
+  version: Schema.NullOr(Schema.String),
+  globalRoot: Schema.String,
+});
+export type ServiceNowSdkStatus = typeof ServiceNowSdkStatusSchema.Type;
+
 export interface DesktopBridge {
+  checkServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
+  installServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
   getAppBranding: () => DesktopAppBranding | null;
   /** The desktop client's OS platform, read from Electron's preload process. */
   getClientPlatform?: () => string;

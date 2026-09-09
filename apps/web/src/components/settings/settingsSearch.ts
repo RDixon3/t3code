@@ -403,6 +403,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     targetId: "browser",
   },
   {
+    id: "servicenow-sdk",
+    title: "ServiceNow SDK",
+    to: "/settings/integrations",
+    searchTerms: ["npm global install CLI version machine"],
+  },
+  {
     id: "browser-default-profile",
     title: "Default browser profile",
     to: "/settings/integrations",

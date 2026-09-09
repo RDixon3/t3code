@@ -1,4 +1,5 @@
 import { Spinner } from "~/components/ui/spinner";
+import { useWorkspaceProject } from "./workspace/useWorkspaceProject";
 import {
   ArchiveIcon,
   ArrowUpDownIcon,
@@ -3104,7 +3105,17 @@ const SidebarProjectsContent = memo(function SidebarProjectsContent(
 });
 
 export default function LegacySidebar() {
-  const projects = useProjects();
+  const allProjects = useProjects();
+  const { project: selectedProject } = useWorkspaceProject();
+  const projects = useMemo(
+    () =>
+      allProjects.filter((project) =>
+        selectedProject?.memberProjectRefs.some(
+          (ref) => ref.environmentId === project.environmentId && ref.projectId === project.id,
+        ),
+      ),
+    [allProjects, selectedProject],
+  );
   const sidebarThreads = useThreadShells();
   const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
   const projectOrder = useUiStateStore((store) => store.projectOrder);

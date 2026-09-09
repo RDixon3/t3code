@@ -1,11 +1,12 @@
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { scopeProjectRef } from "@t3tools/client-runtime/environment";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { LinkIcon, PlusIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { NoProjectsHero } from "../components/NoProjectsHero";
-import { sortScopedProjectsForSidebar } from "../components/Sidebar.logic";
+import { useWorkspaceProject } from "../components/workspace/useWorkspaceProject";
+import { latestBuildThread } from "../components/workspace/latestBuildThread";
 import { Button } from "../components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../components/ui/empty";
 import { SidebarInset } from "../components/ui/sidebar";
@@ -33,43 +34,55 @@ function ChatIndexRouteView() {
 }
 
 /**
- * Landing on the index route drops straight into a draft thread for the most
- * recently active project, so the first screen is a prompt instead of a dead
- * end. Falls back to an add-project hero when no project exists yet.
+ * Build opens the selected project's most recent thread, or its stock draft
+ * when no thread exists. Project selection is shared with Manage.
  */
 function IndexDraftLanding() {
   const projects = useProjects();
+  const { project: selectedProject } = useWorkspaceProject();
+  const navigate = useNavigate();
   const threads = useThreadShells();
   const bootstrapped = useAllEnvironmentShellsBootstrapped();
   const handleNewThread = useNewThreadHandler();
   const startingRef = useRef(false);
   const [startState, setStartState] = useState({ failed: false, retryRequest: 0 });
 
-  const mostRecentProject = useMemo(
-    () =>
-      bootstrapped
-        ? (sortScopedProjectsForSidebar(projects, threads, "updated_at")[0] ?? null)
-        : null,
-    [bootstrapped, projects, threads],
+  const mostRecentThread = useMemo(
+    () => latestBuildThread(selectedProject?.memberProjectRefs ?? [], threads),
+    [selectedProject, threads],
   );
 
   useEffect(() => {
-    if (mostRecentProject === null || startingRef.current) {
+    if (!bootstrapped || selectedProject === null || startingRef.current) {
       return;
     }
     startingRef.current = true;
-    void handleNewThread(scopeProjectRef(mostRecentProject.environmentId, mostRecentProject.id), {
-      replace: true,
-    }).catch(() => {
+    const opening = mostRecentThread
+      ? navigate({
+          to: "/$environmentId/$threadId",
+          params: { environmentId: mostRecentThread.environmentId, threadId: mostRecentThread.id },
+          replace: true,
+        })
+      : handleNewThread(scopeProjectRef(selectedProject.environmentId, selectedProject.id), {
+          replace: true,
+        });
+    void opening.catch(() => {
       startingRef.current = false;
       setStartState((state) => ({ ...state, failed: true }));
     });
-  }, [handleNewThread, mostRecentProject, startState.retryRequest]);
+  }, [
+    bootstrapped,
+    handleNewThread,
+    selectedProject,
+    mostRecentThread,
+    navigate,
+    startState.retryRequest,
+  ]);
 
   if (!bootstrapped) {
     return null;
   }
-  if (mostRecentProject !== null) {
+  if (selectedProject !== null) {
     return startState.failed ? (
       <DraftStartError
         onRetry={() => {
@@ -83,7 +96,22 @@ function IndexDraftLanding() {
   }
   // First-run routing to the welcome wizard happens in FirstRunGate at the
   // root, before this route ever renders.
-  return <NoProjectsHero />;
+  if (projects.length === 0) return <NoProjectsHero />;
+  return (
+    <SidebarInset className="h-dvh min-h-0 bg-background text-foreground">
+      <WorkspacePageHeader>
+        <h1 className="text-sm font-medium">Build</h1>
+      </WorkspacePageHeader>
+      <Empty className="flex-1">
+        <EmptyHeader>
+          <EmptyTitle>Select a project</EmptyTitle>
+          <EmptyDescription>
+            Choose a project in the sidebar to open its most recent thread.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    </SidebarInset>
+  );
 }
 
 function DraftStartError({ onRetry }: { readonly onRetry: () => void }) {
