@@ -12,59 +12,12 @@ import {
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JiraConnectionStatus } from "@t3tools/contracts";
 import * as NodeCrypto from "node:crypto";
-import * as NodeHttp from "node:http";
+import { listenForOAuth } from "./oauthCallback.ts";
 
 export const JIRA_MCP_URL = "https://mcp.atlassian.com/v2/mcp";
 
-export async function listenForJiraOAuth(state: string, signal: AbortSignal) {
-  let resolveCode!: (code: string) => void;
-  let rejectCode!: (error: Error) => void;
-  const code = new Promise<string>((resolve, reject) => {
-    resolveCode = resolve;
-    rejectCode = reject;
-  });
-  // The callback can arrive while the MCP connection is still unwinding its 401.
-  void code.catch(() => {});
-  const server = NodeHttp.createServer((request, response) => {
-    const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    response.setHeader("Content-Type", "text/plain; charset=utf-8");
-    response.setHeader("Cache-Control", "no-store");
-    if (request.method !== "GET" || url.pathname !== "/jira/callback") {
-      response.writeHead(404).end("Not found");
-      return;
-    }
-    if (url.searchParams.get("state") !== state) {
-      response.writeHead(400).end("Invalid sign-in state. Return to T3 Code and try again.");
-      return;
-    }
-    const authorizationCode = url.searchParams.get("code");
-    if (url.searchParams.has("error") || !authorizationCode) {
-      response.writeHead(400).end("Sign-in was not completed. Return to T3 Code.");
-      rejectCode(new Error("Atlassian sign-in was declined or incomplete."));
-      return;
-    }
-    response.end("Sign-in received. You can return to T3 Code.");
-    resolveCode(authorizationCode);
-  });
-  await new Promise<void>((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", resolve);
-  });
-  const close = () => {
-    signal.removeEventListener("abort", abort);
-    server.close();
-    server.closeAllConnections();
-  };
-  const abort = () => {
-    rejectCode(new Error("Jira sign-in cancelled or timed out."));
-    close();
-  };
-  signal.addEventListener("abort", abort, { once: true });
-  const address = server.address();
-  if (!address || typeof address === "string") throw new Error("Could not start Jira sign-in.");
-  if (signal.aborted) abort();
-  return { redirectUrl: `http://127.0.0.1:${address.port}/jira/callback`, code, close };
-}
+export const listenForJiraOAuth = (state: string, signal: AbortSignal) =>
+  listenForOAuth(state, signal, { path: "/jira/callback", port: 0, name: "Jira" });
 
 type Credentials = {
   redirectUrl: string;

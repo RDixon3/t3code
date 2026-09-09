@@ -2,6 +2,7 @@ import type { ServiceNowSdkStatus } from "@t3tools/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { SettingsSection } from "./settingsLayout";
+import { ServiceNowConnectionSettings } from "./ServiceNowConnectionSettings";
 
 export function ServiceNowSdkSettings() {
   const bridge = window.desktopBridge;
@@ -58,6 +59,7 @@ export function ServiceNowSdkSettings() {
 
   return (
     <SettingsSection id="servicenow-sdk" title="ServiceNow">
+      <ServiceNowConnectionSettings />
       <div className="space-y-3 p-4">
         <p className="font-medium">ServiceNow SDK</p>
         <p className="text-sm text-muted-foreground">

@@ -1,6 +1,10 @@
 export const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 export const CHECK_SERVICENOW_SDK_CHANNEL = "desktop:check-servicenow-sdk";
 export const JIRA_STATUS_CHANNEL = "desktop:jira-status";
+export const SERVICENOW_STATUS_CHANNEL = "desktop:servicenow-status";
+export const SERVICENOW_CONNECT_CHANNEL = "desktop:servicenow-connect";
+export const SERVICENOW_TEST_CHANNEL = "desktop:servicenow-test";
+export const SERVICENOW_DISCONNECT_CHANNEL = "desktop:servicenow-disconnect";
 export const JIRA_CONNECT_CHANNEL = "desktop:jira-connect";
 export const JIRA_TEST_CHANNEL = "desktop:jira-test";
 export const JIRA_DISCONNECT_CHANNEL = "desktop:jira-disconnect";

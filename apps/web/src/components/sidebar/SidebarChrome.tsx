@@ -1,3 +1,4 @@
+import { forkFeatures } from "~/forkFeatures";
 import {
   ArrowLeftIcon,
   ChartNoAxesColumnIcon,
@@ -11,13 +12,9 @@ import { Link, useCanGoBack, useLocation, useNavigate } from "@tanstack/react-ro
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
 import { cn } from "../../lib/utils";
 import { useEnvironments } from "../../state/environments";
-import { T3Wordmark } from "../T3Wordmark";
 import { WorkspaceModeSwitch } from "../workspace/WorkspaceModeSwitch";
 import {
   resolveEnvironmentIdentificationPillLabel,
-  resolveSidebarStageBackdropVariant,
-  resolveSidebarStageFocusRingOffsetClass,
-  SidebarStageBackdrop,
   useEnvironmentStageLabel,
 } from "../SidebarStageBackdrop";
 import { Badge } from "../ui/badge";
@@ -42,10 +39,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 }) {
   const stageLabel = useEnvironmentStageLabel();
   const environmentIdentificationMode = useEnvironmentIdentificationMode();
-  const backdropVariant = resolveSidebarStageBackdropVariant(
-    stageLabel,
-    environmentIdentificationMode === "artwork",
-  );
   const pillLabel =
     environmentIdentificationMode === "pill"
       ? resolveEnvironmentIdentificationPillLabel(stageLabel)
@@ -59,16 +52,8 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
           isElectron && "drag-region",
         )}
       >
-        {backdropVariant ? <SidebarStageBackdrop variant={backdropVariant} /> : null}
-        <SidebarTrigger
-          className={cn(
-            "relative z-10 md:hidden",
-            backdropVariant &&
-              "focus-visible:ring-white/90 [&_svg]:stroke-white/90! [&_svg]:opacity-100! [&_svg]:hover:stroke-white! [:hover,[data-pressed]]:bg-white/15",
-            backdropVariant && resolveSidebarStageFocusRingOffsetClass(backdropVariant),
-          )}
-        />
-        <SidebarBrand onBackdrop={backdropVariant !== null} />
+        <SidebarTrigger className="relative z-10 md:hidden" />
+        <SidebarBrand />
         {pillLabel ? (
           <Badge
             className="relative z-10 ml-1 hidden rounded-full px-1.5 text-muted-foreground @[15rem]/sidebar-header:inline-flex"
@@ -85,26 +70,16 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
   );
 });
 
-function SidebarBrand({ onBackdrop }: { onBackdrop: boolean }) {
+function SidebarBrand() {
   return (
     <Link
-      aria-label="Go to threads"
-      className={cn(
-        "relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md outline-hidden ring-ring focus-visible:ring-2 md:flex",
-        onBackdrop ? "text-white" : "text-foreground",
-      )}
+      aria-label="CoCo — go to Build"
+      className="relative z-10 ml-[var(--workspace-titlebar-content-left)] hidden h-7 w-fit min-w-0 shrink-0 items-center overflow-hidden rounded-md outline-hidden ring-ring focus-visible:ring-2 md:flex"
       to="/"
     >
-      <span className="inline-flex min-w-0 items-baseline gap-1">
-        <T3Wordmark aria-label="T3" className="h-2.5 w-auto shrink-0" />
-        <span
-          className={cn(
-            "truncate text-sm font-medium tracking-tight",
-            onBackdrop ? "text-white/70" : "text-muted-foreground",
-          )}
-        >
-          Code
-        </span>
+      <span className="inline-flex min-w-0 items-baseline text-lg font-bold tracking-tight">
+        <span className="text-[#d04a02] dark:text-[#eb8c00]">Co</span>
+        <span className="text-[#e0301e] dark:text-[#ff6b55]">Co</span>
       </span>
     </Link>
   );
@@ -206,7 +181,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
             label="Settings"
             onClick={handleSettingsClick}
           />
-          {pullRequestsSupported ? (
+          {forkFeatures.pullRequests && pullRequestsSupported ? (
             <SidebarUtilityItem
               icon={<GitPullRequestIcon />}
               label="Pull Requests"

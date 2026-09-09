@@ -1,3 +1,4 @@
+import { isProviderVisible } from "./forkFeatures";
 /**
  * Instance-aware view over the wire `ServerProvider[]`.
  *
@@ -76,12 +77,17 @@ export interface ProviderInstanceEntry {
  * `ready` probe status can remain in the streamed snapshot until reconciliation.
  */
 export function isProviderInstancePickerReady(entry: ProviderInstanceEntry): boolean {
-  return entry.enabled && entry.isAvailable && entry.status === "ready";
+  return (
+    isProviderVisible(entry.driverKind) &&
+    entry.enabled &&
+    entry.isAvailable &&
+    entry.status === "ready"
+  );
 }
 
 /** Picker rails contain configured, enabled instances only. */
 export function isProviderInstancePickerVisible(entry: ProviderInstanceEntry): boolean {
-  return entry.enabled;
+  return isProviderVisible(entry.driverKind) && entry.enabled;
 }
 
 /**
@@ -94,26 +100,28 @@ export function isProviderInstancePickerVisible(entry: ProviderInstanceEntry): b
 export function deriveProviderInstanceEntries(
   providers: ReadonlyArray<ServerProvider>,
 ): ReadonlyArray<ProviderInstanceEntry> {
-  return providers.map((snapshot) => {
-    const instanceId = snapshot.instanceId;
-    const driverKind = snapshot.driver;
-    const defaultId = defaultInstanceIdForDriver(driverKind);
-    const isDefault = instanceId === defaultId;
-    return {
-      instanceId,
-      driverKind,
-      displayName: resolveProviderInstanceDisplayName(snapshot),
-      accentColor: normalizeProviderAccentColor(snapshot.accentColor),
-      continuationGroupKey: snapshot.continuation?.groupKey,
-      enabled: snapshot.enabled,
-      installed: snapshot.installed,
-      status: snapshot.status,
-      isDefault,
-      isAvailable: snapshot.availability !== "unavailable",
-      snapshot,
-      models: snapshot.models,
-    } satisfies ProviderInstanceEntry;
-  });
+  return providers
+    .filter((snapshot) => isProviderVisible(snapshot.driver))
+    .map((snapshot) => {
+      const instanceId = snapshot.instanceId;
+      const driverKind = snapshot.driver;
+      const defaultId = defaultInstanceIdForDriver(driverKind);
+      const isDefault = instanceId === defaultId;
+      return {
+        instanceId,
+        driverKind,
+        displayName: resolveProviderInstanceDisplayName(snapshot),
+        accentColor: normalizeProviderAccentColor(snapshot.accentColor),
+        continuationGroupKey: snapshot.continuation?.groupKey,
+        enabled: snapshot.enabled,
+        installed: snapshot.installed,
+        status: snapshot.status,
+        isDefault,
+        isAvailable: snapshot.availability !== "unavailable",
+        snapshot,
+        models: snapshot.models,
+      } satisfies ProviderInstanceEntry;
+    });
 }
 
 /**

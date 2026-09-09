@@ -1,3 +1,4 @@
+import { isSourceControlVisible } from "~/forkFeatures";
 import { useAtomValue } from "@effect/atom-react";
 import { type ScopedThreadRef } from "@t3tools/contracts";
 import {
@@ -448,19 +449,25 @@ function PublishRepositoryDialog(props: PublishRepositoryDialogProps) {
     ) as Record<PublishProviderKind, { readonly ready: boolean; readonly hint: string | null }>;
   }, [sourceControlDiscovery.data]);
   const hasReadyPublishProvider = useMemo(
-    () => PUBLISH_PROVIDER_OPTIONS.some((option) => publishProviderReadiness[option.value].ready),
+    () =>
+      PUBLISH_PROVIDER_OPTIONS.some(
+        (option) =>
+          isSourceControlVisible(option.value) && publishProviderReadiness[option.value].ready,
+      ),
     [publishProviderReadiness],
   );
   const sortedPublishProviderOptions = useMemo(
     () =>
-      PUBLISH_PROVIDER_OPTIONS.toSorted((left, right) => {
-        const leftReady = publishProviderReadiness[left.value].ready;
-        const rightReady = publishProviderReadiness[right.value].ready;
-        if (leftReady !== rightReady) {
-          return leftReady ? -1 : 1;
-        }
-        return left.label.localeCompare(right.label);
-      }),
+      PUBLISH_PROVIDER_OPTIONS.filter((option) => isSourceControlVisible(option.value)).toSorted(
+        (left, right) => {
+          const leftReady = publishProviderReadiness[left.value].ready;
+          const rightReady = publishProviderReadiness[right.value].ready;
+          if (leftReady !== rightReady) {
+            return leftReady ? -1 : 1;
+          }
+          return left.label.localeCompare(right.label);
+        },
+      ),
     [publishProviderReadiness],
   );
   const firstReadyPublishProvider = sortedPublishProviderOptions.find(

@@ -1,3 +1,4 @@
+import { forkFeatures } from "~/forkFeatures";
 import type {
   EnvironmentId,
   RepositoryIdentity,
@@ -259,7 +260,7 @@ export function useOpenChangeRequestLink(
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   return useCallback(
     (event, targetUrl, targetThreadRef, targetEnvironmentId) => {
-      if (shouldOpenPullRequestExternally(event)) return false;
+      if (!forkFeatures.pullRequests || shouldOpenPullRequestExternally(event)) return false;
       const resolvedThreadRef = targetThreadRef ?? threadRef;
       const resolvedPanelRef = panelRef ?? resolvedThreadRef;
       const parsed = parseChangeRequestUrl(targetUrl);

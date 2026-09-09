@@ -1,3 +1,4 @@
+import { forkFeatures } from "~/forkFeatures";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { Spinner } from "~/components/ui/spinner";
 import { pullRequestHostOf, resolveEnvironmentMachineKind } from "@t3tools/contracts";
@@ -13,7 +14,7 @@ import type {
   SourceControlProviderKind,
 } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import {
   ArrowDownUpIcon,
   CalendarArrowDownIcon,
@@ -239,6 +240,9 @@ function pullRequestSearchLabels(raw: unknown): Partial<Pick<PullRequestsSearch,
 }
 
 export const Route = createFileRoute("/_chat/pull-requests")({
+  beforeLoad: () => {
+    if (!forkFeatures.pullRequests) throw redirect({ to: "/" });
+  },
   validateSearch: (raw: Record<string, unknown>): PullRequestsSearch => ({
     involvement:
       raw.involvement === "reviewing" || raw.involvement === "authored" ? raw.involvement : "all",

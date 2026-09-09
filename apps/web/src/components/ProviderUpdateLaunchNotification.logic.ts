@@ -1,3 +1,4 @@
+import { isProviderVisible } from "~/forkFeatures";
 import {
   defaultInstanceIdForDriver,
   PROVIDER_DISPLAY_NAMES,
@@ -91,6 +92,7 @@ function dedupeProvidersByDriver<T extends ServerProvider>(providers: ReadonlyAr
   const latestProviderByDriver = new Map<ProviderDriverKind, T>();
 
   for (const provider of providers) {
+    if (!isProviderVisible(provider.driver)) continue;
     latestProviderByDriver.set(
       provider.driver,
       chooseRepresentativeProvider(latestProviderByDriver.get(provider.driver), provider) as T,
@@ -104,6 +106,7 @@ function dedupeProvidersByInstanceId<T extends ServerProvider>(providers: Readon
   const latestProviderByInstanceId = new Map<ProviderInstanceId, T>();
 
   for (const provider of providers) {
+    if (!isProviderVisible(provider.driver)) continue;
     const current = latestProviderByInstanceId.get(provider.instanceId);
     if (!current || provider.checkedAt.localeCompare(current.checkedAt) >= 0) {
       latestProviderByInstanceId.set(provider.instanceId, provider);
@@ -140,6 +143,7 @@ export function isProviderUpdateCandidate(
   provider: ServerProvider,
 ): provider is ProviderUpdateCandidate {
   return (
+    isProviderVisible(provider.driver) &&
     provider.enabled &&
     provider.versionAdvisory?.status === "behind_latest" &&
     provider.versionAdvisory.latestVersion !== null
@@ -160,6 +164,7 @@ export function isProviderSettingsUpdateCandidate(
   provider: ServerProvider,
 ): provider is ProviderSettingsUpdateCandidate {
   return (
+    isProviderVisible(provider.driver) &&
     provider.enabled &&
     provider.versionAdvisory?.status === "behind_latest" &&
     provider.versionAdvisory.canUpdate === true &&

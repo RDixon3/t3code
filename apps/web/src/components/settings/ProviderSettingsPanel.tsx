@@ -1,3 +1,4 @@
+import { isProviderVisible } from "~/forkFeatures";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { useAtomValue } from "@effect/atom-react";
 import { connectionStatusTitle } from "@t3tools/client-runtime/connection";
@@ -588,7 +589,9 @@ export function EnvironmentProviderSettings({
       ),
     [serverProviders],
   );
-  const visibleProviderSettings = PROVIDER_SETTINGS.filter(
+  const visibleProviderSettings = PROVIDER_SETTINGS.filter((providerSettings) =>
+    isProviderVisible(providerSettings.provider),
+  ).filter(
     (providerSettings) =>
       providerSettings.provider !== "cursor" ||
       serverProviders.some(
@@ -759,6 +762,7 @@ export function EnvironmentProviderSettings({
     }
   }
   for (const [driver, list] of instancesByDriver) {
+    if (!isProviderVisible(driver)) continue;
     if (visibleDriverKinds.has(driver)) continue;
     for (const [id, instance] of list) {
       rows.push({

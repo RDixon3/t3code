@@ -1,3 +1,4 @@
+import { isProviderVisible } from "~/forkFeatures";
 import {
   AntigravitySettings,
   ClaudeSettings,
@@ -90,7 +91,9 @@ const PROVIDER_CLIENT_DEFINITION_BY_VALUE: Partial<
   PROVIDER_CLIENT_DEFINITIONS.map((definition) => [definition.value, definition]),
 );
 
-export const DRIVER_OPTIONS = PROVIDER_CLIENT_DEFINITIONS;
+export const DRIVER_OPTIONS = PROVIDER_CLIENT_DEFINITIONS.filter((definition) =>
+  isProviderVisible(definition.value),
+);
 export const DRIVER_OPTION_BY_VALUE = PROVIDER_CLIENT_DEFINITION_BY_VALUE;
 export type DriverOption = ProviderClientDefinition;
 

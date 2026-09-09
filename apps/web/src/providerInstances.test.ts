@@ -49,6 +49,22 @@ const model = (slug: string, isCustom = false, isDefault = false) => ({
 });
 
 describe("isProviderInstancePickerReady", () => {
+  it("hides fork-disabled drivers including custom instances without changing server snapshots", () => {
+    const snapshots = ["codex", "claudeAgent", "cursor", "grok", "opencode", "antigravity"].map(
+      (driver) =>
+        provider({ provider: ProviderDriverKind.make(driver), instanceId: `${driver}_custom` }),
+    );
+    expect(deriveProviderInstanceEntries(snapshots).map((entry) => entry.driverKind)).toEqual([
+      "codex",
+      "claudeAgent",
+      "cursor",
+    ]);
+    expect(snapshots).toHaveLength(6);
+    expect(snapshots.every((snapshot) => snapshot.enabled)).toBe(true);
+    expect(
+      resolveSelectableProviderInstance(snapshots, ProviderInstanceId.make("grok_custom")),
+    ).toBe("codex_custom");
+  });
   it("rejects a disabled instance even while its last probe status is ready", () => {
     const [entry] = deriveProviderInstanceEntries([
       provider({

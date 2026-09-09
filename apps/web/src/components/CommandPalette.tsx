@@ -1,4 +1,5 @@
-"use client";
+import { isSourceControlVisible } from "~/forkFeatures";
+("use client");
 
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
@@ -236,7 +237,7 @@ const REMOTE_PROJECT_PROVIDER_SOURCES: ReadonlyArray<AddProjectRemoteProviderKin
   "gitlab",
   "bitbucket",
   "azure-devops",
-];
+].filter((source) => isSourceControlVisible(source)) as ReadonlyArray<AddProjectRemoteProviderKind>;
 
 function remoteProjectSourceLabel(source: AddProjectRemoteSource): string {
   switch (source) {

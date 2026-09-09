@@ -51,6 +51,10 @@ function unwrapEnsureSshEnvironmentResult(result: unknown) {
 contextBridge.exposeInMainWorld("desktopBridge", {
   checkServiceNowSdk: () => ipcRenderer.invoke(IpcChannels.CHECK_SERVICENOW_SDK_CHANNEL),
   getJiraConnectionStatus: () => ipcRenderer.invoke(IpcChannels.JIRA_STATUS_CHANNEL),
+  getServiceNowConnectionStatus: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_STATUS_CHANNEL),
+  connectServiceNow: (config) => ipcRenderer.invoke(IpcChannels.SERVICENOW_CONNECT_CHANNEL, config),
+  testServiceNowConnection: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_TEST_CHANNEL),
+  disconnectServiceNow: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_DISCONNECT_CHANNEL),
   connectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_CONNECT_CHANNEL),
   testJiraConnection: () => ipcRenderer.invoke(IpcChannels.JIRA_TEST_CHANNEL),
   disconnectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_DISCONNECT_CHANNEL),

@@ -1,3 +1,4 @@
+import { isSourceControlVisible, isVersionControlVisible } from "~/forkFeatures";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import { ChevronDownIcon, GitPullRequestIcon } from "lucide-react";
 import * as Duration from "effect/Duration";
@@ -515,7 +516,16 @@ export function SourceControlSettingsPanel() {
           input: {},
         }),
   );
-  const result = discovery.data ?? EMPTY_DISCOVERY_RESULT;
+  const discovered = discovery.data ?? EMPTY_DISCOVERY_RESULT;
+  const result = {
+    ...discovered,
+    versionControlSystems: discovered.versionControlSystems.filter((item) =>
+      isVersionControlVisible(item.kind),
+    ),
+    sourceControlProviders: discovered.sourceControlProviders.filter((item) =>
+      isSourceControlVisible(item.kind),
+    ),
+  };
   const hasVersionControlSystems = result.versionControlSystems.length > 0;
   const hasDiscoveryItems = hasVersionControlSystems || result.sourceControlProviders.length > 0;
   const isInitialScanPending = discovery.isPending && discovery.data === null;

@@ -409,6 +409,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["npm global install CLI version machine"],
   },
   {
+    id: "servicenow-connection",
+    title: "ServiceNow instance connection",
+    to: "/settings/integrations",
+    searchTerms: ["SSO OAuth PKCE pursuit authentication"],
+  },
+  {
     id: "jira",
     title: "Jira",
     to: "/settings/integrations",
