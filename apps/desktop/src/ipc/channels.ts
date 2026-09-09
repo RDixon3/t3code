@@ -1,5 +1,9 @@
 export const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 export const CHECK_SERVICENOW_SDK_CHANNEL = "desktop:check-servicenow-sdk";
+export const JIRA_STATUS_CHANNEL = "desktop:jira-status";
+export const JIRA_CONNECT_CHANNEL = "desktop:jira-connect";
+export const JIRA_TEST_CHANNEL = "desktop:jira-test";
+export const JIRA_DISCONNECT_CHANNEL = "desktop:jira-disconnect";
 export const INSTALL_SERVICENOW_SDK_CHANNEL = "desktop:install-servicenow-sdk";
 export const PICK_PROJECT_FAVICON_CHANNEL = "desktop:pick-project-favicon";
 export const PICK_THEME_FILES_CHANNEL = "desktop:pick-theme-files";

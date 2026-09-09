@@ -1,6 +1,7 @@
 import * as Effect from "effect/Effect";
 
 import * as DesktopIpc from "./DesktopIpc.ts";
+import { installJiraIpc } from "./methods/jira.ts";
 import { checkServiceNowSdk, installServiceNowSdk } from "./methods/serviceNowSdk.ts";
 import { getClientSettings, setClientSettings } from "./methods/clientSettings.ts";
 import {
@@ -67,6 +68,7 @@ import { getWslState, setWslBackendEnabled, setWslDistro, setWslOnly } from "./m
 
 export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers")(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
+  yield* installJiraIpc();
   yield* ipc.handle(checkServiceNowSdk);
   yield* ipc.handle(installServiceNowSdk);
   yield* PreviewIpc.installPreviewEventForwarding();

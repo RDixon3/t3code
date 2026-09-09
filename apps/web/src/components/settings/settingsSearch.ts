@@ -409,6 +409,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["npm global install CLI version machine"],
   },
   {
+    id: "jira",
+    title: "Jira",
+    to: "/settings/integrations",
+    searchTerms: ["Atlassian Rovo MCP SSO connect authentication"],
+  },
+  {
     id: "browser-default-profile",
     title: "Default browser profile",
     to: "/settings/integrations",

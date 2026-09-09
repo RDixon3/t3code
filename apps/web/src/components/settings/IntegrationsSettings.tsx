@@ -100,6 +100,7 @@ import { searchableSetting } from "./settingsSearch";
 import { BrowserImportWizard, type WizardTarget } from "./BrowserImportWizard";
 import type { ImportOutcome } from "./browserImportWizard.logic";
 import { ServiceNowSdkSettings } from "./ServiceNowSdkSettings";
+import { JiraSettings } from "./JiraSettings";
 
 const FILL_VALUE = "fill";
 const RESPONSIVE_VALUE = "responsive";
@@ -1158,6 +1159,7 @@ export function IntegrationsSettingsPanel() {
 
   return (
     <SettingsPageContainer>
+      <JiraSettings />
       <ServiceNowSdkSettings />
       <SettingsSection id="browser" title="Browser">
         {/* Server-authoritative, so it stays editable on any client anchored to

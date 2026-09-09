@@ -1218,7 +1218,17 @@ export const ServiceNowSdkStatusSchema = Schema.Struct({
 });
 export type ServiceNowSdkStatus = typeof ServiceNowSdkStatusSchema.Type;
 
+export const JiraConnectionStatusSchema = Schema.Struct({
+  connected: Schema.Boolean,
+  checkedAt: Schema.NullOr(Schema.String),
+});
+export type JiraConnectionStatus = typeof JiraConnectionStatusSchema.Type;
+
 export interface DesktopBridge {
+  getJiraConnectionStatus?: () => Promise<JiraConnectionStatus>;
+  connectJira?: () => Promise<JiraConnectionStatus>;
+  testJiraConnection?: () => Promise<JiraConnectionStatus>;
+  disconnectJira?: () => Promise<JiraConnectionStatus>;
   checkServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
   installServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
   getAppBranding: () => DesktopAppBranding | null;
