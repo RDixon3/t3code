@@ -1,0 +1,111 @@
+name: CoCo macOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: CoCo version (for example 0.1.0)
+        required: true
+        default: "0.1.0"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: coco-macos-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build unsigned Apple Silicon installer
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ inputs.version }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      T3CODE_DESKTOP_SIGNED: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate version and architecture
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          [[ "$(uname -m)" == "arm64" ]] || exit 1
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+      - name: Install dependencies
+        run: vp install --frozen-lockfile --filter=@t3tools/desktop... --filter=t3... --filter=@t3tools/scripts...
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+      - name: Prepare CoCo release
+        run: |
+          node scripts/update-release-package-versions.ts "$VERSION"
+          node scripts/prepare-coco-release.mjs
+      - name: Build installer
+        run: vp run dist:desktop:artifact --platform mac --target dmg --arch arm64 --build-version "$VERSION" --verbose
+      - name: Verify and checksum release
+        run: |
+          set -euo pipefail
+          test -f "release/CoCo-${VERSION}-arm64.dmg"
+          mkdir -p release-files
+          cp "release/CoCo-${VERSION}-arm64.dmg" release-files/
+          hdiutil verify "release-files/CoCo-${VERSION}-arm64.dmg"
+          mountpoint="$RUNNER_TEMP/coco-mounted"
+          hdiutil attach "release-files/CoCo-${VERSION}-arm64.dmg" -nobrowse -readonly -mountpoint "$mountpoint"
+          trap 'hdiutil detach "$mountpoint"' EXIT
+          app="$mountpoint/CoCo.app"
+          test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")" = "io.github.rdixon3.coco"
+          test "$(lipo -archs "$app/Contents/MacOS/CoCo")" = "arm64"
+          test ! -f "$app/Contents/Resources/app-update.yml"
+          cd release-files
+          shasum -a 256 *.dmg > SHA256SUMS.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coco-macos-arm64
+          path: release-files/
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish CoCo GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: coco-macos-arm64
+          path: release-files
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          cd release-files
+          sha256sum --check SHA256SUMS.txt
+          cat > release-notes.md <<'NOTES'
+          CoCo pilot for macOS Apple Silicon (M-series Macs).
+
+          Download the DMG, open it, and drag CoCo into Applications.
+
+          This build is not Developer ID signed or notarized. macOS or company device policy may block it; use your organization's approved installation process.
+
+          - CoCo branding and light/dark theme included.
+          - Separate local data in ~/.coco; stock T3 data is not migrated.
+          - Manual upgrades: download and install the next CoCo release. Automatic application updates are disabled.
+          - Jira and ServiceNow sign-in settings are included. ServiceNow requires your instance's OAuth app registration; pursuit table integration is not configured.
+          - Install and authenticate your chosen coding-provider CLI separately.
+          - SHA256SUMS.txt contains the installer checksum.
+          NOTES
+          gh release create "coco-v${VERSION}" "CoCo-${VERSION}-arm64.dmg" SHA256SUMS.txt \
+            --target "$RELEASE_COMMIT" --title "CoCo ${VERSION} — Apple Silicon" \
+            --notes-file release-notes.md --draft
+          gh release edit "coco-v${VERSION}" --draft=false --latest
