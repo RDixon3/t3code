@@ -41,7 +41,7 @@ describe("Jira connection", () => {
       if (url.hostname === "127.0.0.1") return nativeFetch(input, init);
       if (url.pathname.includes("oauth-protected-resource"))
         return Response.json({
-          resource: "https://mcp.atlassian.com/v2/mcp",
+          resource: "https://mcp.atlassian.com/v1/mcp",
           authorization_servers: ["https://auth.atlassian.com"],
         });
       if (url.pathname.includes("oauth-authorization-server"))
@@ -70,13 +70,13 @@ describe("Jira connection", () => {
           token_type: "Bearer",
         });
       }
-      if (url.pathname === "/v2/mcp") {
+      if (url.pathname === "/v1/mcp") {
         if (new Headers(init?.headers).get("authorization") !== "Bearer access") {
           return new Response(null, {
             status: 401,
             headers: {
               "WWW-Authenticate":
-                'Bearer resource_metadata="https://mcp.atlassian.com/.well-known/oauth-protected-resource/v2/mcp"',
+                'Bearer resource_metadata="https://mcp.atlassian.com/.well-known/oauth-protected-resource/v1/mcp"',
             },
           });
         }

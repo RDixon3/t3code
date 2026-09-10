@@ -14,7 +14,8 @@ import type { JiraConnectionStatus } from "@t3tools/contracts";
 import * as NodeCrypto from "node:crypto";
 import { listenForOAuth } from "./oauthCallback.ts";
 
-export const JIRA_MCP_URL = "https://mcp.atlassian.com/v2/mcp";
+// Pin v1 for compatibility with the team's Atlassian SSO setup.
+export const JIRA_MCP_URL = "https://mcp.atlassian.com/v1/mcp";
 
 export const listenForJiraOAuth = (state: string, signal: AbortSignal) =>
   listenForOAuth(state, signal, { path: "/jira/callback", port: 0, name: "Jira" });

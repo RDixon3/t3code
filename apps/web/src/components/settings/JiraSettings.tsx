@@ -67,7 +67,7 @@ export function JiraSettings() {
           Sign in through Atlassian using your organization’s SSO. This connection applies to all
           projects on this desktop.
         </p>
-        <p className="break-all text-xs text-muted-foreground">https://mcp.atlassian.com/v2/mcp</p>
+        <p className="break-all text-xs text-muted-foreground">https://mcp.atlassian.com/v1/mcp</p>
         {!available ? (
           <p className="text-sm text-muted-foreground">Available in the desktop app.</p>
         ) : (
