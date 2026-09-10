@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build unsigned Apple Silicon installer
+    name: Build ad-hoc signed Apple Silicon installer
     runs-on: macos-15
     timeout-minutes: 60
     env:
@@ -61,6 +61,8 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist")" = "io.github.rdixon3.coco"
           test "$(lipo -archs "$app/Contents/MacOS/CoCo")" = "arm64"
           test ! -f "$app/Contents/Resources/app-update.yml"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --verbose=2 "$app" 2>&1 | grep -Fx 'Signature=adhoc'
           cd release-files
           shasum -a 256 *.dmg > SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
@@ -96,7 +98,7 @@ jobs:
 
           Download the DMG, open it, and drag CoCo into Applications.
 
-          This build is not Developer ID signed or notarized. macOS or company device policy may block it; use your organization's approved installation process.
+          This build is ad-hoc signed and its app signature is verified during packaging. It is not Developer ID signed or notarized. macOS or company device policy may block it; use your organization's approved installation process.
 
           - CoCo branding and light/dark theme included.
           - Separate local data in ~/.coco; stock T3 data is not migrated.

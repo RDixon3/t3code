@@ -32,6 +32,13 @@ await replace(
   "macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,",
   'macIconPng: "apps/desktop/resources/coco-icon.png",',
 );
+// Seal the renamed Electron bundle without an Apple certificate. Keep the
+// builder's default Electron entitlements, including library validation relief.
+await replace(
+  "scripts/build-desktop-artifact.ts",
+  "buildConfig.mac = {",
+  'buildConfig.mac = {\n      identity: "-",\n      notarize: false,',
+);
 await replace(
   "scripts/build-desktop-artifact.ts",
   "if (!isDesktopPreviewVersion(version)) {",
