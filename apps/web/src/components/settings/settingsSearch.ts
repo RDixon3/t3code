@@ -418,7 +418,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "jira",
     title: "Jira",
     to: "/settings/integrations",
-    searchTerms: ["Atlassian Rovo MCP SSO connect authentication"],
+    searchTerms: [
+      "Atlassian Rovo MCP v1 v2 SSO connect authentication diagnostics logs tools errors",
+    ],
   },
   {
     id: "browser-default-profile",

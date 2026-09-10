@@ -1,9 +1,18 @@
-import type { JiraConnectionStatus } from "@t3tools/contracts";
+import type { JiraConnectionStatus, JiraMcpVersion } from "@t3tools/contracts";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { SettingsSection } from "./settingsLayout";
 
 export function JiraSettings() {
+  return (
+    <SettingsSection id="jira" title="Jira">
+      <JiraConnectionSettings version="v1" />
+      <JiraConnectionSettings version="v2" />
+    </SettingsSection>
+  );
+}
+
+function JiraConnectionSettings({ version }: { version: JiraMcpVersion }) {
   const bridge = window.desktopBridge;
   const available = Boolean(
     bridge?.connectJira &&
@@ -20,7 +29,7 @@ export function JiraSettings() {
     if (!bridge?.getJiraConnectionStatus) return;
     const id = ++request.current;
     void bridge
-      .getJiraConnectionStatus()
+      .getJiraConnectionStatus(version)
       .then((result) => {
         if (id === request.current) setStatus(result);
       })
@@ -34,7 +43,7 @@ export function JiraSettings() {
     return () => {
       request.current++;
     };
-  }, [bridge]);
+  }, [bridge, version]);
 
   async function run(action: "connect" | "test" | "disconnect") {
     const command =
@@ -49,79 +58,108 @@ export function JiraSettings() {
     setError(null);
     setStatus((current) => (current ? { ...current, checkedAt: null } : null));
     try {
-      const result = await command();
+      const result = await command(version);
       if (id === request.current) setStatus(result);
     } catch (cause) {
-      if (id === request.current)
+      if (id === request.current) {
         setError(cause instanceof Error ? cause.message : "Jira connection failed. Try again.");
+        const latest = await bridge?.getJiraConnectionStatus?.(version).catch(() => null);
+        if (id === request.current && latest) setStatus(latest);
+      }
     } finally {
       if (id === request.current) setBusy(null);
     }
   }
 
   return (
-    <SettingsSection id="jira" title="Jira">
-      <div className="space-y-3 p-4">
-        <p className="font-medium">Atlassian Rovo MCP</p>
-        <p className="text-sm text-muted-foreground">
-          Sign in through Atlassian using your organization’s SSO. This connection applies to all
-          projects on this desktop.
-        </p>
-        <p className="break-all text-xs text-muted-foreground">https://mcp.atlassian.com/v1/mcp</p>
-        {!available ? (
-          <p className="text-sm text-muted-foreground">Available in the desktop app.</p>
-        ) : (
-          <>
-            <p role="status" className="text-sm">
-              {busy === "connect"
-                ? "Complete sign-in in your browser…"
-                : busy === "test"
-                  ? "Testing connection…"
-                  : busy === "disconnect"
-                    ? "Disconnecting…"
-                    : busy === "loading"
-                      ? "Checking saved connection…"
-                      : status?.checkedAt
-                        ? "Connected · MCP access verified"
-                        : status?.connected
-                          ? "Signed in · connection not yet verified"
-                          : "Not connected"}
+    <div className="space-y-3 border-b border-border/60 p-4 last:border-b-0">
+      <p className="font-medium">Atlassian Rovo MCP {version}</p>
+      <p className="text-sm text-muted-foreground">
+        Sign in through Atlassian using your organization’s SSO. This connection applies to all
+        projects on this desktop. Each version has its own credentials and diagnostics.
+      </p>
+      <p className="break-all text-xs text-muted-foreground">
+        https://mcp.atlassian.com/{version}/mcp
+      </p>
+      {!available ? (
+        <p className="text-sm text-muted-foreground">Available in the desktop app.</p>
+      ) : (
+        <>
+          <p role="status" className="text-sm">
+            {busy === "connect"
+              ? "Complete sign-in in your browser…"
+              : busy === "test"
+                ? "Testing connection…"
+                : busy === "disconnect"
+                  ? "Disconnecting…"
+                  : busy === "loading"
+                    ? "Checking saved connection…"
+                    : status?.checkedAt
+                      ? "Connected · MCP checks passed"
+                      : status?.connected
+                        ? "Signed in · connection not yet verified"
+                        : "Not connected"}
+          </p>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
             </p>
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button size="sm" disabled={busy !== null} onClick={() => void run("connect")}>
-                {status?.connected ? "Reconnect with SSO" : "Connect with SSO"}
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" disabled={busy !== null} onClick={() => void run("connect")}>
+              {status?.connected ? "Reconnect with SSO" : "Connect with SSO"}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={busy !== null || !status?.connected}
+              onClick={() => void run("test")}
+            >
+              Test connection
+            </Button>
+            {(status?.connected || error || busy === "connect") && (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy !== null && busy !== "connect"}
+                onClick={() => void run("disconnect")}
+              >
+                {busy === "connect" ? "Cancel sign-in" : "Disconnect"}
               </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Credentials are encrypted on this device. Disconnect removes the saved connection; you
+            can revoke access in your Atlassian account.
+          </p>
+          {status?.diagnostics && (
+            <details className="space-y-2 text-xs">
+              <summary className="cursor-pointer">Connection diagnostics</summary>
+              <p>
+                Latest Connect/Test run. Tool discovery does not verify every tool. Tokens and raw
+                issue content are omitted.
+              </p>
               <Button
                 size="sm"
                 variant="outline"
-                disabled={busy !== null || !status?.connected}
-                onClick={() => void run("test")}
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(status.diagnostics ?? "")
+                    .catch(() =>
+                      setError("Could not copy diagnostics. Select and copy the report below."),
+                    );
+                }}
               >
-                Test connection
+                Copy diagnostics
               </Button>
-              {(status?.connected || error || busy === "connect") && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy !== null && busy !== "connect"}
-                  onClick={() => void run("disconnect")}
-                >
-                  {busy === "connect" ? "Cancel sign-in" : "Disconnect"}
-                </Button>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Credentials are encrypted on this device. Disconnect removes the saved connection; you
-              can revoke access in your Atlassian account.
-            </p>
-          </>
-        )}
-      </div>
-    </SettingsSection>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded bg-muted p-3 select-text">
+                {status.diagnostics}
+              </pre>
+              <p className="break-all text-muted-foreground">Log: {status.diagnosticsPath}</p>
+            </details>
+          )}
+        </>
+      )}
+    </div>
   );
 }

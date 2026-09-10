@@ -31,93 +31,193 @@ function fixture(initial?: string) {
 }
 
 describe("Jira connection", () => {
-  it("runs the MCP SDK discovery, PKCE exchange and tools probe end to end", async () => {
-    const f = fixture();
-    const nativeFetch = globalThis.fetch;
-    let redirectUri = "";
-    let tokenExchanged = false;
-    const mock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
-      const url = new URL(String(input));
-      if (url.hostname === "127.0.0.1") return nativeFetch(input, init);
-      if (url.pathname.includes("oauth-protected-resource"))
-        return Response.json({
-          resource: "https://mcp.atlassian.com/v1/mcp",
-          authorization_servers: ["https://auth.atlassian.com"],
-        });
-      if (url.pathname.includes("oauth-authorization-server"))
-        return Response.json({
-          issuer: "https://auth.atlassian.com",
-          authorization_endpoint: "https://auth.atlassian.com/authorize",
-          token_endpoint: "https://auth.atlassian.com/token",
-          registration_endpoint: "https://auth.atlassian.com/register",
-          response_types_supported: ["code"],
-          code_challenge_methods_supported: ["S256"],
-        });
-      if (url.pathname === "/register") {
-        const metadata = JSON.parse(String(init?.body));
-        redirectUri = metadata.redirect_uris[0];
-        return Response.json({ ...metadata, client_id: "test-client" });
-      }
-      if (url.pathname === "/token") {
-        const form = new URLSearchParams(String(init?.body));
-        expect(form.get("code")).toBe("authorized-code");
-        expect(form.get("code_verifier")).toBeTruthy();
-        expect(form.get("redirect_uri")).toBe(redirectUri);
-        tokenExchanged = true;
-        return Response.json({
-          access_token: "access",
-          refresh_token: "refresh",
-          token_type: "Bearer",
-        });
-      }
-      if (url.pathname === "/v1/mcp") {
-        if (new Headers(init?.headers).get("authorization") !== "Bearer access") {
-          return new Response(null, {
-            status: 401,
-            headers: {
-              "WWW-Authenticate":
-                'Bearer resource_metadata="https://mcp.atlassian.com/.well-known/oauth-protected-resource/v1/mcp"',
-            },
-          });
-        }
+  it.each(["success", "tool-error", "invalid-schema"])(
+    "reports post-auth discovery and tool outcomes: %s",
+    async (outcome) => {
+      const f = fixture(saved);
+      const mock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
         if (init?.method === "GET") return new Response(null, { status: 405 });
         const message = JSON.parse(String(init?.body));
         if (message.method === "notifications/initialized")
           return new Response(null, { status: 202 });
-        return Response.json({
-          jsonrpc: "2.0",
-          id: message.id,
-          result:
-            message.method === "initialize"
-              ? {
-                  protocolVersion: "2025-03-26",
-                  capabilities: { tools: {} },
-                  serverInfo: { name: "test-atlassian", version: "1" },
-                }
-              : { tools: [] },
-        });
-      }
-      throw new Error(`Unexpected request to ${url.origin}${url.pathname}`);
-    });
-    try {
-      const connection = makeJiraConnection({
-        ...f.deps,
-        openExternal: async (address) => {
-          const authorization = new URL(address);
-          expect(authorization.searchParams.get("code_challenge_method")).toBe("S256");
-          const callback = new URL(redirectUri);
-          callback.searchParams.set("state", authorization.searchParams.get("state")!);
-          callback.searchParams.set("code", "authorized-code");
-          await nativeFetch(callback);
-        },
+        let result: unknown;
+        if (message.method === "initialize")
+          result = {
+            protocolVersion: "2025-03-26",
+            capabilities: { tools: {} },
+            serverInfo: { name: "atlassian-test", version: "2" },
+          };
+        else if (message.method === "tools/list") {
+          result =
+            outcome === "invalid-schema"
+              ? { tools: [{ name: "broken", inputSchema: { type: "string" } }] }
+              : message.params?.cursor
+                ? { tools: [{ name: "other", inputSchema: { type: "object" } }] }
+                : {
+                    tools: [
+                      {
+                        name: "getAccessibleAtlassianResources",
+                        inputSchema: { type: "object", properties: {} },
+                      },
+                    ],
+                    nextCursor: "next",
+                  };
+        } else if (message.method === "tools/call")
+          result = {
+            isError: outcome === "tool-error",
+            content: [
+              {
+                type: "text",
+                text: outcome === "tool-error" ? "MCP permission denied; Bearer do-not-log" : "[]",
+              },
+            ],
+          };
+        else throw new Error(`Unexpected method ${message.method}`);
+        return Response.json(
+          { jsonrpc: "2.0", id: message.id, result },
+          { headers: { "x-request-id": "test-request-id" } },
+        );
       });
-      expect((await connection.connect()).checkedAt).not.toBeNull();
-      expect(tokenExchanged).toBe(true);
-      expect((await connection.test()).connected).toBe(true);
-    } finally {
-      mock.mockRestore();
-    }
+      try {
+        const connection = makeJiraConnection(f.deps, "v2");
+        if (outcome === "success") expect((await connection.test()).checkedAt).not.toBeNull();
+        else {
+          await expect(connection.test()).rejects.toThrow(
+            outcome === "tool-error" ? "tools/call" : "tools/list",
+          );
+          expect(await connection.status()).toEqual({ connected: true, checkedAt: null });
+        }
+        const log = connection.diagnostics();
+        expect(log).toContain("atlassian-test");
+        expect(log).toContain("test-request-id");
+        if (outcome !== "invalid-schema") {
+          expect(log).toContain("Complete: 2 advertised tools");
+          expect(log).toContain("getAccessibleAtlassianResources");
+        }
+        if (outcome === "tool-error") expect(log).toContain("MCP permission denied");
+        expect(log).not.toContain("old-token");
+        expect(log).not.toContain("do-not-log");
+      } finally {
+        mock.mockRestore();
+      }
+    },
+  );
+
+  it("keeps versions' credentials, reports, and disconnect independent", async () => {
+    const one = fixture(saved);
+    const two = fixture(saved);
+    const v1 = makeJiraConnection({ ...one.deps, probe: async () => {} }, "v1");
+    const v2 = makeJiraConnection(
+      {
+        ...two.deps,
+        probe: async () => {
+          throw new Error("v2 tool failure");
+        },
+      },
+      "v2",
+    );
+    await v1.test();
+    await expect(v2.test()).rejects.toThrow("v2 tool failure");
+    await v2.disconnect();
+    expect((await v1.status()).connected).toBe(true);
+    expect(v1.diagnostics()).not.toContain("v2 tool failure");
+    expect(one.value()).toBe(saved);
+    expect(two.value()).toBeUndefined();
   });
+  it.each(["v1", "v2"] as const)(
+    "runs %s discovery, PKCE exchange and tools probe end to end",
+    async (version) => {
+      const f = fixture();
+      const nativeFetch = globalThis.fetch;
+      let redirectUri = "";
+      let tokenExchanged = false;
+      const mock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+        const url = new URL(String(input));
+        if (url.hostname === "127.0.0.1") return nativeFetch(input, init);
+        if (url.pathname.includes("oauth-protected-resource"))
+          return Response.json({
+            resource: `https://mcp.atlassian.com/${version}/mcp`,
+            authorization_servers: ["https://auth.atlassian.com"],
+          });
+        if (url.pathname.includes("oauth-authorization-server"))
+          return Response.json({
+            issuer: "https://auth.atlassian.com",
+            authorization_endpoint: "https://auth.atlassian.com/authorize",
+            token_endpoint: "https://auth.atlassian.com/token",
+            registration_endpoint: "https://auth.atlassian.com/register",
+            response_types_supported: ["code"],
+            code_challenge_methods_supported: ["S256"],
+          });
+        if (url.pathname === "/register") {
+          const metadata = JSON.parse(String(init?.body));
+          redirectUri = metadata.redirect_uris[0];
+          return Response.json({ ...metadata, client_id: "test-client" });
+        }
+        if (url.pathname === "/token") {
+          const form = new URLSearchParams(String(init?.body));
+          expect(form.get("code")).toBe("authorized-code");
+          expect(form.get("code_verifier")).toBeTruthy();
+          expect(form.get("redirect_uri")).toBe(redirectUri);
+          tokenExchanged = true;
+          return Response.json({
+            access_token: "access",
+            refresh_token: "refresh",
+            token_type: "Bearer",
+          });
+        }
+        if (url.pathname === `/${version}/mcp`) {
+          if (new Headers(init?.headers).get("authorization") !== "Bearer access") {
+            return new Response(null, {
+              status: 401,
+              headers: {
+                "WWW-Authenticate": `Bearer resource_metadata="https://mcp.atlassian.com/.well-known/oauth-protected-resource/${version}/mcp"`,
+              },
+            });
+          }
+          if (init?.method === "GET") return new Response(null, { status: 405 });
+          const message = JSON.parse(String(init?.body));
+          if (message.method === "notifications/initialized")
+            return new Response(null, { status: 202 });
+          return Response.json({
+            jsonrpc: "2.0",
+            id: message.id,
+            result:
+              message.method === "initialize"
+                ? {
+                    protocolVersion: "2025-03-26",
+                    capabilities: { tools: {} },
+                    serverInfo: { name: "test-atlassian", version: "1" },
+                  }
+                : { tools: [] },
+          });
+        }
+        throw new Error(`Unexpected request to ${url.origin}${url.pathname}`);
+      });
+      try {
+        const connection = makeJiraConnection(
+          {
+            ...f.deps,
+            openExternal: async (address) => {
+              const authorization = new URL(address);
+              expect(authorization.searchParams.get("code_challenge_method")).toBe("S256");
+              const callback = new URL(redirectUri);
+              callback.searchParams.set("state", authorization.searchParams.get("state")!);
+              callback.searchParams.set("code", "authorized-code");
+              await nativeFetch(callback);
+            },
+          },
+          version,
+        );
+        expect((await connection.connect()).checkedAt).not.toBeNull();
+        expect(tokenExchanged).toBe(true);
+        expect((await connection.test()).connected).toBe(true);
+        expect(connection.diagnostics()).toContain(`/${version}/mcp`);
+        expect(connection.diagnostics()).toContain("tools/list: Complete");
+      } finally {
+        mock.mockRestore();
+      }
+    },
+  );
   it("starts disconnected and does not open sign-in when testing without credentials", async () => {
     const f = fixture();
     const connection = makeJiraConnection(f.deps);

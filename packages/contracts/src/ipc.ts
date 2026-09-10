@@ -1224,9 +1224,14 @@ export const ServiceNowSdkStatusSchema = Schema.Struct({
 });
 export type ServiceNowSdkStatus = typeof ServiceNowSdkStatusSchema.Type;
 
+export const JiraMcpVersionSchema = Schema.Literals(["v1", "v2"]);
+export type JiraMcpVersion = typeof JiraMcpVersionSchema.Type;
+
 export const JiraConnectionStatusSchema = Schema.Struct({
   connected: Schema.Boolean,
   checkedAt: Schema.NullOr(Schema.String),
+  diagnostics: Schema.optionalKey(Schema.String),
+  diagnosticsPath: Schema.optionalKey(Schema.String),
 });
 export type JiraConnectionStatus = typeof JiraConnectionStatusSchema.Type;
 
@@ -1248,10 +1253,10 @@ export interface DesktopBridge {
   connectServiceNow?: (config: ServiceNowConnectionConfig) => Promise<ServiceNowConnectionStatus>;
   testServiceNowConnection?: () => Promise<ServiceNowConnectionStatus>;
   disconnectServiceNow?: () => Promise<ServiceNowConnectionStatus>;
-  getJiraConnectionStatus?: () => Promise<JiraConnectionStatus>;
-  connectJira?: () => Promise<JiraConnectionStatus>;
-  testJiraConnection?: () => Promise<JiraConnectionStatus>;
-  disconnectJira?: () => Promise<JiraConnectionStatus>;
+  getJiraConnectionStatus?: (version?: JiraMcpVersion) => Promise<JiraConnectionStatus>;
+  connectJira?: (version?: JiraMcpVersion) => Promise<JiraConnectionStatus>;
+  testJiraConnection?: (version?: JiraMcpVersion) => Promise<JiraConnectionStatus>;
+  disconnectJira?: (version?: JiraMcpVersion) => Promise<JiraConnectionStatus>;
   checkServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
   listServiceNowSdkProfiles?: () => Promise<ReadonlyArray<ServiceNowSdkProfile>>;
   installServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;

@@ -52,14 +52,15 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   checkServiceNowSdk: () => ipcRenderer.invoke(IpcChannels.CHECK_SERVICENOW_SDK_CHANNEL),
   listServiceNowSdkProfiles: () =>
     ipcRenderer.invoke(IpcChannels.LIST_SERVICENOW_SDK_PROFILES_CHANNEL),
-  getJiraConnectionStatus: () => ipcRenderer.invoke(IpcChannels.JIRA_STATUS_CHANNEL),
+  getJiraConnectionStatus: (version) =>
+    ipcRenderer.invoke(IpcChannels.JIRA_STATUS_CHANNEL, version),
   getServiceNowConnectionStatus: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_STATUS_CHANNEL),
   connectServiceNow: (config) => ipcRenderer.invoke(IpcChannels.SERVICENOW_CONNECT_CHANNEL, config),
   testServiceNowConnection: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_TEST_CHANNEL),
   disconnectServiceNow: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_DISCONNECT_CHANNEL),
-  connectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_CONNECT_CHANNEL),
-  testJiraConnection: () => ipcRenderer.invoke(IpcChannels.JIRA_TEST_CHANNEL),
-  disconnectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_DISCONNECT_CHANNEL),
+  connectJira: (version) => ipcRenderer.invoke(IpcChannels.JIRA_CONNECT_CHANNEL, version),
+  testJiraConnection: (version) => ipcRenderer.invoke(IpcChannels.JIRA_TEST_CHANNEL, version),
+  disconnectJira: (version) => ipcRenderer.invoke(IpcChannels.JIRA_DISCONNECT_CHANNEL, version),
   installServiceNowSdk: () => ipcRenderer.invoke(IpcChannels.INSTALL_SERVICENOW_SDK_CHANNEL),
   getAppBranding: () => {
     const result = ipcRenderer.sendSync(IpcChannels.GET_APP_BRANDING_CHANNEL);
