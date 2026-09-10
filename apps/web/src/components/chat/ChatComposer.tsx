@@ -1239,7 +1239,7 @@ export interface ChatComposerHandle {
 // --------------------------------------------------------------------------
 
 export interface ChatComposerProps {
-  projectContextControl?: ReactNode;
+  renderProjectContextControl?: (size: "sm" | "xs") => ReactNode;
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
   attachmentUploadsCapabilityKnown: boolean;
@@ -4191,7 +4191,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         onInstanceModelChange={onProviderModelSelect}
         onOpenProviderSetup={onOpenProviderSetup}
       />
-      {props.projectContextControl}
 
       {composerControlsCompact ? (
         <CompactComposerControlsMenu
@@ -4252,6 +4251,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           ) : null}
         </>
       )}
+      {props.renderProjectContextControl?.(composerControlsInStrip ? "xs" : "sm")}
     </>
   );
   const showTasksTab =

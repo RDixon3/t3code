@@ -4,7 +4,8 @@ export function isHostLocalSdkEnvironment(
   clientOs: string | undefined,
   pageUrl: string,
 ): boolean {
-  if (target?._tag !== "PrimaryConnectionTarget" || !clientOs || serverOs !== clientOs)
+  const nativeOs = clientOs === "win32" ? "windows" : clientOs;
+  if (target?._tag !== "PrimaryConnectionTarget" || !nativeOs || serverOs !== nativeOs)
     return false;
   try {
     return ["localhost", "127.0.0.1", "[::1]"].includes(

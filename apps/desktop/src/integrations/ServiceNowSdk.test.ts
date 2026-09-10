@@ -30,6 +30,61 @@ function fixture(initial: string | null, installResult: string | null = metadata
 }
 
 describe("global ServiceNow SDK", () => {
+  it.effect("deletes only the confirmed profile and verifies it is gone", () =>
+    Effect.gen(function* () {
+      let removed = false;
+      const commands: ReadonlyArray<string>[] = [];
+      const sdk = makeServiceNowSdk({
+        runNpm: () => Effect.succeed("/global"),
+        readPackage: () => Effect.succeed(metadata),
+        runSdk: (_root, args = ["auth", "--list"]) =>
+          Effect.sync(() => {
+            commands.push(args);
+            if (args[1] === "--delete") {
+              removed = true;
+              return "";
+            }
+            return (
+              (removed ? "" : "[dev]\n host = https://dev.service-now.com\n") +
+              "[other]\n host = https://other.service-now.com"
+            );
+          }),
+      });
+      expect(
+        yield* sdk.deleteProfile({ alias: "dev", instanceUrl: "https://dev.service-now.com" }),
+      ).toEqual([{ alias: "other", instanceUrl: "https://other.service-now.com" }]);
+      expect(commands.filter((args) => args[1] === "--delete")).toEqual([
+        ["auth", "--delete", "dev"],
+      ]);
+    }),
+  );
+  it.effect(
+    "refuses to delete a profile whose instance changed and detects unsuccessful deletion",
+    () =>
+      Effect.gen(function* () {
+        const commands: ReadonlyArray<string>[] = [];
+        const sdk = makeServiceNowSdk({
+          runNpm: () => Effect.succeed("/global"),
+          readPackage: () => Effect.succeed(metadata),
+          runSdk: (_root, args = ["auth", "--list"]) =>
+            Effect.sync(() => {
+              commands.push(args);
+              return "[dev]\n host = https://dev.service-now.com";
+            }),
+        });
+        expect(
+          (yield* Effect.flip(
+            sdk.deleteProfile({ alias: "dev", instanceUrl: "https://old.service-now.com" }),
+          )).message,
+        ).toContain("changed");
+        expect(commands.some((args) => args[1] === "--delete")).toBe(false);
+        expect(
+          (yield* Effect.flip(
+            sdk.deleteProfile({ alias: "dev", instanceUrl: "https://dev.service-now.com" }),
+          )).message,
+        ).toContain("did not delete");
+      }),
+  );
   it.effect("lists existing global profiles and propagates discovery failures", () =>
     Effect.gen(function* () {
       const roots: string[] = [];

@@ -7,6 +7,11 @@ import {
   checkServiceNowSdk,
   installServiceNowSdk,
   listServiceNowSdkProfiles,
+  deleteServiceNowSdkProfile,
+  addServiceNowSdkProfile,
+  completeServiceNowSdkProfile,
+  cancelServiceNowSdkProfile,
+  addBasicServiceNowSdkProfile,
 } from "./methods/serviceNowSdk.ts";
 import { getClientSettings, setClientSettings } from "./methods/clientSettings.ts";
 import {
@@ -70,6 +75,7 @@ import {
 import * as PreviewIpc from "./methods/preview.ts";
 import * as AppActivationIpc from "./methods/appActivation.ts";
 import { getWslState, setWslBackendEnabled, setWslDistro, setWslOnly } from "./methods/wsl.ts";
+import { sdkAuth } from "../integrations/serviceNowSdkAuth.ts";
 
 export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers")(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
@@ -77,6 +83,12 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* installServiceNowIpc();
   yield* ipc.handle(checkServiceNowSdk);
   yield* ipc.handle(listServiceNowSdkProfiles);
+  yield* ipc.handle(deleteServiceNowSdkProfile);
+  yield* ipc.handle(addServiceNowSdkProfile);
+  yield* ipc.handle(completeServiceNowSdkProfile);
+  yield* ipc.handle(cancelServiceNowSdkProfile);
+  yield* ipc.handle(addBasicServiceNowSdkProfile);
+  yield* Effect.addFinalizer(() => Effect.sync(() => sdkAuth.cancelAll()));
   yield* ipc.handle(installServiceNowSdk);
   yield* PreviewIpc.installPreviewEventForwarding();
 

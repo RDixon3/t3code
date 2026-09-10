@@ -1,6 +1,11 @@
 export const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
 export const CHECK_SERVICENOW_SDK_CHANNEL = "desktop:check-servicenow-sdk";
 export const LIST_SERVICENOW_SDK_PROFILES_CHANNEL = "desktop:list-servicenow-sdk-profiles";
+export const DELETE_SERVICENOW_SDK_PROFILE_CHANNEL = "desktop:delete-servicenow-sdk-profile";
+export const ADD_SERVICENOW_SDK_PROFILE_CHANNEL = "desktop:add-servicenow-sdk-profile";
+export const COMPLETE_SERVICENOW_SDK_PROFILE_CHANNEL = "desktop:complete-servicenow-sdk-profile";
+export const CANCEL_SERVICENOW_SDK_PROFILE_CHANNEL = "desktop:cancel-servicenow-sdk-profile";
+export const ADD_BASIC_SERVICENOW_SDK_PROFILE_CHANNEL = "desktop:add-basic-servicenow-sdk-profile";
 export const JIRA_STATUS_CHANNEL = "desktop:jira-status";
 export const SERVICENOW_STATUS_CHANNEL = "desktop:servicenow-status";
 export const SERVICENOW_CONNECT_CHANNEL = "desktop:servicenow-connect";
@@ -116,3 +121,10 @@ export const PREVIEW_RECORDING_SAVE_CHANNEL = "desktop:preview-recording-save";
 export const PREVIEW_RECORDING_FRAME_CHANNEL = "desktop:preview-recording-frame";
 export const PREVIEW_STATE_CHANGE_CHANNEL = "desktop:preview-state-change";
 export const PREVIEW_POINTER_EVENT_CHANNEL = "desktop:preview-pointer-event";
+
+export const JIRA_SITES_CHANNEL = "desktop:jira-sites";
+export const JIRA_PROJECTS_CHANNEL = "desktop:jira-projects";
+
+export const JIRA_ISSUES_CHANNEL = "desktop:jira-issues";
+export const JIRA_TRANSITIONS_CHANNEL = "desktop:jira-transitions";
+export const JIRA_TRANSITION_CHANNEL = "desktop:jira-transition";

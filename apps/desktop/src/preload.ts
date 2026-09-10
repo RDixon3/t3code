@@ -49,6 +49,16 @@ function unwrapEnsureSshEnvironmentResult(result: unknown) {
 }
 
 contextBridge.exposeInMainWorld("desktopBridge", {
+  deleteServiceNowSdkProfile: (profile) =>
+    ipcRenderer.invoke(IpcChannels.DELETE_SERVICENOW_SDK_PROFILE_CHANNEL, profile),
+  addBasicServiceNowSdkProfile: (input) =>
+    ipcRenderer.invoke(IpcChannels.ADD_BASIC_SERVICENOW_SDK_PROFILE_CHANNEL, input),
+  completeServiceNowSdkProfile: (input) =>
+    ipcRenderer.invoke(IpcChannels.COMPLETE_SERVICENOW_SDK_PROFILE_CHANNEL, input),
+  cancelServiceNowSdkProfile: () =>
+    ipcRenderer.invoke(IpcChannels.CANCEL_SERVICENOW_SDK_PROFILE_CHANNEL),
+  addServiceNowSdkProfile: (profile) =>
+    ipcRenderer.invoke(IpcChannels.ADD_SERVICENOW_SDK_PROFILE_CHANNEL, profile),
   checkServiceNowSdk: () => ipcRenderer.invoke(IpcChannels.CHECK_SERVICENOW_SDK_CHANNEL),
   listServiceNowSdkProfiles: () =>
     ipcRenderer.invoke(IpcChannels.LIST_SERVICENOW_SDK_PROFILES_CHANNEL),
@@ -59,6 +69,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   disconnectServiceNow: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_DISCONNECT_CHANNEL),
   connectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_CONNECT_CHANNEL),
   testJiraConnection: () => ipcRenderer.invoke(IpcChannels.JIRA_TEST_CHANNEL),
+  listJiraSites: () => ipcRenderer.invoke(IpcChannels.JIRA_SITES_CHANNEL),
+  listJiraProjects: (input) => ipcRenderer.invoke(IpcChannels.JIRA_PROJECTS_CHANNEL, input),
+  listJiraIssues: (input) => ipcRenderer.invoke(IpcChannels.JIRA_ISSUES_CHANNEL, input),
+  getJiraTransitions: (input) => ipcRenderer.invoke(IpcChannels.JIRA_TRANSITIONS_CHANNEL, input),
+  transitionJiraIssue: (input) => ipcRenderer.invoke(IpcChannels.JIRA_TRANSITION_CHANNEL, input),
   disconnectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_DISCONNECT_CHANNEL),
   installServiceNowSdk: () => ipcRenderer.invoke(IpcChannels.INSTALL_SERVICENOW_SDK_CHANNEL),
   getAppBranding: () => {

@@ -1,4 +1,14 @@
-import { JiraConnectionStatusSchema } from "@t3tools/contracts";
+import {
+  JiraIssuesRequestSchema,
+  JiraIssuePageSchema,
+  JiraIssueTargetSchema,
+  JiraTransitionSchema,
+  JiraTransitionRequestSchema,
+  JiraConnectionStatusSchema,
+  JiraSiteSchema,
+  JiraProjectsRequestSchema,
+  JiraProjectPageSchema,
+} from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as FileSystem from "effect/FileSystem";
@@ -74,6 +84,96 @@ export const installJiraIpc = Effect.fn("desktop.ipc.installJira")(function* () 
         }),
       ),
   });
+  const diagnosticsPath = environment.path.join(environment.logDir, "jira-v1-diagnostics.log");
+  const withDiagnostics = async <T>(operation: () => Promise<T>): Promise<T> => {
+    try {
+      return await operation();
+    } finally {
+      if (connection.diagnostics()) {
+        await Effect.runPromise(
+          Effect.gen(function* () {
+            yield* fs.makeDirectory(environment.logDir, { recursive: true });
+            yield* fs.writeFileString(diagnosticsPath, connection.diagnostics(), { mode: 0o600 });
+          }),
+        ).catch(() => {}); // Diagnostics must not mask the connection result.
+      }
+    }
+  };
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.JIRA_SITES_CHANNEL,
+      payload: Schema.Void,
+      result: Schema.Array(JiraSiteSchema),
+      handler: () =>
+        Effect.tryPromise({
+          try: () => withDiagnostics(() => connection.listSites()),
+          catch: (cause) =>
+            new JiraConnectionError({
+              message: cause instanceof Error ? cause.message : "Could not load Jira sites.",
+            }),
+        }),
+    }),
+  );
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.JIRA_PROJECTS_CHANNEL,
+      payload: JiraProjectsRequestSchema,
+      result: JiraProjectPageSchema,
+      handler: (input) =>
+        Effect.tryPromise({
+          try: () => withDiagnostics(() => connection.listProjects(input)),
+          catch: (cause) =>
+            new JiraConnectionError({
+              message: cause instanceof Error ? cause.message : "Could not load Jira projects.",
+            }),
+        }),
+    }),
+  );
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.JIRA_ISSUES_CHANNEL,
+      payload: JiraIssuesRequestSchema,
+      result: JiraIssuePageSchema,
+      handler: (input) =>
+        Effect.tryPromise({
+          try: () => withDiagnostics(() => connection.listIssues(input)),
+          catch: (cause) =>
+            new JiraConnectionError({
+              message: cause instanceof Error ? cause.message : "Jira request failed.",
+            }),
+        }),
+    }),
+  );
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.JIRA_TRANSITIONS_CHANNEL,
+      payload: JiraIssueTargetSchema,
+      result: Schema.Array(JiraTransitionSchema),
+      handler: (input) =>
+        Effect.tryPromise({
+          try: () => withDiagnostics(() => connection.getTransitions(input)),
+          catch: (cause) =>
+            new JiraConnectionError({
+              message: cause instanceof Error ? cause.message : "Jira request failed.",
+            }),
+        }),
+    }),
+  );
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.JIRA_TRANSITION_CHANNEL,
+      payload: JiraTransitionRequestSchema,
+      result: Schema.Void,
+      handler: (input) =>
+        Effect.tryPromise({
+          try: () => withDiagnostics(() => connection.transitionIssue(input)),
+          catch: (cause) =>
+            new JiraConnectionError({
+              message: cause instanceof Error ? cause.message : "Jira request failed.",
+            }),
+        }),
+    }),
+  );
   for (const [channel, action] of [
     [Channels.JIRA_STATUS_CHANNEL, "status"],
     [Channels.JIRA_CONNECT_CHANNEL, "connect"],
@@ -88,28 +188,14 @@ export const installJiraIpc = Effect.fn("desktop.ipc.installJira")(function* () 
         handler: () =>
           Effect.tryPromise({
             try: async () => {
-              const diagnosticsPath = environment.path.join(
-                environment.logDir,
-                "jira-v1-diagnostics.log",
-              );
-              try {
-                const result = await connection[action]();
-                const diagnostics =
-                  connection.diagnostics() ||
-                  (await Effect.runPromise(fs.readFileString(diagnosticsPath)).catch(() => ""));
-                return { ...result, diagnostics, diagnosticsPath };
-              } finally {
-                if (action !== "status" && connection.diagnostics()) {
-                  await Effect.runPromise(
-                    Effect.gen(function* () {
-                      yield* fs.makeDirectory(environment.logDir, { recursive: true });
-                      yield* fs.writeFileString(diagnosticsPath, connection.diagnostics(), {
-                        mode: 0o600,
-                      });
-                    }),
-                  ).catch(() => {}); // Diagnostics must not mask the connection result.
-                }
-              }
+              const result =
+                action === "status"
+                  ? await connection.status()
+                  : await withDiagnostics(() => connection[action]());
+              const diagnostics =
+                connection.diagnostics() ||
+                (await Effect.runPromise(fs.readFileString(diagnosticsPath)).catch(() => ""));
+              return { ...result, diagnostics, diagnosticsPath };
             },
             catch: (cause) =>
               new JiraConnectionError({

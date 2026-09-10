@@ -8340,15 +8340,14 @@ export default function ChatView(props: ChatViewProps) {
                       <ComposerSurface.Host>
                         <div ref={attachDraftHeroComposerAnchorRef} className="relative z-10">
                           <ChatComposer
-                            projectContextControl={
-                              activeProject ? (
-                                <ServiceNowSdkProfilePicker
-                                  key={`${environmentId}:${activeProject.id}`}
-                                  environmentId={environmentId}
-                                  projectId={activeProject.id}
-                                />
-                              ) : null
-                            }
+                            renderProjectContextControl={(size) => (
+                              <ServiceNowSdkProfilePicker
+                                key={`${environmentId}:${activeProject?.id ?? "none"}`}
+                                environmentId={environmentId}
+                                projectId={activeProject?.id ?? null}
+                                size={size}
+                              />
+                            )}
                             composerRef={composerRef}
                             composerDraftTarget={composerDraftTarget}
                             environmentId={environmentId}

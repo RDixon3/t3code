@@ -12,7 +12,9 @@ import {
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JiraConnectionStatus } from "@t3tools/contracts";
 import * as NodeCrypto from "node:crypto";
+import { jiraProjectQuery, parseJiraIssues, parseJiraTransitions } from "./jiraIssues.ts";
 import { listenForOAuth } from "./oauthCallback.ts";
+import { jiraToolData, parseJiraSites, parseJiraProjects } from "./jiraDiscovery.ts";
 import { makeJiraDiagnostics } from "./jiraDiagnostics.ts";
 
 export const listenForJiraOAuth = (state: string, signal: AbortSignal) =>
@@ -36,8 +38,11 @@ export function makeJiraConnection(deps: {
   const endpoint = "https://mcp.atlassian.com/v1/mcp";
   const diagnostics = makeJiraDiagnostics();
   let stage = "idle";
-  let pending: { abort: AbortController; done: Promise<JiraConnectionStatus> } | undefined;
+  let pending:
+    | { abort: AbortController; done: Promise<JiraConnectionStatus>; discovery: boolean }
+    | undefined;
   let checkedAt: string | null = null;
+  let connectionGeneration = 0;
   const load = async (): Promise<Credentials | undefined> => {
     const raw = await deps.read();
     if (!raw) return undefined;
@@ -169,8 +174,14 @@ export function makeJiraConnection(deps: {
         await connection.close();
       }
     });
-  const run = (interactive: boolean): Promise<JiraConnectionStatus> => {
-    if (pending) return pending.done;
+  const run = (
+    interactive: boolean,
+    operation?: (provider: OAuthClientProvider, signal: AbortSignal) => Promise<void>,
+  ): Promise<JiraConnectionStatus> => {
+    if (pending)
+      return operation || pending.discovery
+        ? Promise.reject(new Error("Jira is busy. Try again when the current operation finishes."))
+        : pending.done;
     const abort = new AbortController();
     const signal = AbortSignal.any([
       abort.signal,
@@ -182,7 +193,7 @@ export function makeJiraConnection(deps: {
       stage = "credentials";
       diagnostics.add(
         "run",
-        `${new Date().toISOString()} ${interactive ? "Connect" : "Test"} ${endpoint}`,
+        `${new Date().toISOString()} ${interactive ? "Connect" : operation ? "Discovery" : "Test"} ${endpoint}`,
       );
       const saved = interactive ? undefined : await load();
       diagnostics.add(
@@ -249,14 +260,14 @@ export function makeJiraConnection(deps: {
       };
       try {
         try {
-          await probe(provider, signal);
+          await (operation ?? probe)(provider, signal);
         } catch (error) {
           if (!(error instanceof UnauthorizedError) || !redirected || !callback) throw error;
           stage = "OAuth token exchange";
           const code = await callback.code;
           diagnostics.protect(code);
           await finishAuth(provider, code, signal);
-          await probe(provider, signal);
+          await (operation ?? probe)(provider, signal);
         }
         signal.throwIfAborted();
         if (!credentials.tokens || !credentials.client)
@@ -287,15 +298,88 @@ export function makeJiraConnection(deps: {
       .finally(() => {
         pending = undefined;
       });
-    pending = { abort, done };
+    pending = { abort, done, discovery: Boolean(operation) };
     return done;
   };
+  const discover = async <T>(
+    name: string,
+    args: Record<string, unknown>,
+    parse: (value: unknown) => T,
+    allowEmpty = false,
+  ) => {
+    // Board loading and the project picker share one credential store. Serialize
+    // their requests so refresh-token rotation cannot race; disconnect cancels waiters.
+    const generation = connectionGeneration;
+    let current = pending;
+    while (current) {
+      await current.done.catch(() => {});
+      if (generation !== connectionGeneration)
+        throw new Error("Jira request cancelled by disconnect.");
+      current = pending;
+    }
+    let data!: T;
+    await run(false, async (provider, signal) => {
+      const client = new Client({ name: "t3-code-jira", version: "1.0.0" });
+      try {
+        stage = "initialize";
+        await client.connect(transport(provider, signal) as Transport, { signal, timeout: 30_000 });
+        stage = `tools/call ${name}`;
+        const result = await client.callTool({ name, arguments: args }, undefined, {
+          signal,
+          timeout: 30_000,
+        });
+        diagnostics.add(stage, `isError=${Boolean(result.isError)}`);
+        data = parse(allowEmpty && !result.isError ? undefined : jiraToolData(result));
+      } finally {
+        await client.close();
+      }
+    });
+    return data;
+  };
   return {
+    listSites: () => discover("getAccessibleAtlassianResources", {}, parseJiraSites),
+    listProjects: async ({ cloudId, startAt }: { cloudId: string; startAt: number }) => {
+      if (!cloudId.trim() || !Number.isSafeInteger(startAt) || startAt < 0)
+        throw new Error("Invalid Jira project request.");
+      return discover("getVisibleJiraProjects", { cloudId, startAt, maxResults: 50 }, (value) =>
+        parseJiraProjects(value, startAt),
+      );
+    },
+    listIssues: (input: { cloudId: string; projectKey: string; nextPageToken?: string }) =>
+      discover(
+        "searchJiraIssuesUsingJql",
+        {
+          cloudId: input.cloudId,
+          jql: jiraProjectQuery(input.projectKey),
+          maxResults: 100,
+          fields: ["summary", "issuetype", "status", "assignee", "priority"],
+          ...(input.nextPageToken ? { nextPageToken: input.nextPageToken } : {}),
+        },
+        (value) => parseJiraIssues(value, input.nextPageToken),
+      ),
+    getTransitions: (input: { cloudId: string; issueKey: string }) =>
+      discover(
+        "getTransitionsForJiraIssue",
+        { cloudId: input.cloudId, issueIdOrKey: input.issueKey },
+        parseJiraTransitions,
+      ),
+    transitionIssue: (input: { cloudId: string; issueKey: string; transitionId: string }) =>
+      discover(
+        "transitionJiraIssue",
+        {
+          cloudId: input.cloudId,
+          issueIdOrKey: input.issueKey,
+          transition: { id: input.transitionId },
+        },
+        () => undefined,
+        true,
+      ),
     diagnostics: diagnostics.text,
     status,
     connect: () => run(true),
     test: () => run(false),
     disconnect: async (): Promise<JiraConnectionStatus> => {
+      connectionGeneration++;
       const current = pending;
       current?.abort.abort();
       await current?.done.catch(() => {});

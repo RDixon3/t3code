@@ -1,4 +1,4 @@
-import type { ServiceNowSdkStatus } from "@t3tools/contracts";
+import type { ServiceNowSdkStatus, ServiceNowSdkProfile } from "@t3tools/contracts";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -28,7 +28,10 @@ const installLock = Semaphore.makeUnsafe(1);
 export function makeServiceNowSdk(deps: {
   runNpm: (args: ReadonlyArray<string>) => Effect.Effect<string, ServiceNowSdkError>;
   readPackage: (globalRoot: string) => Effect.Effect<string | null, ServiceNowSdkError>;
-  runSdk: (globalRoot: string) => Effect.Effect<string, ServiceNowSdkError>;
+  runSdk: (
+    globalRoot: string,
+    args?: ReadonlyArray<string>,
+  ) => Effect.Effect<string, ServiceNowSdkError>;
 }) {
   const check = Effect.gen(function* () {
     const globalRoot = (yield* deps.runNpm(["root", "--global"])).trim();
@@ -77,7 +80,27 @@ export function makeServiceNowSdk(deps: {
         }),
     });
   });
-  return { check, install, listProfiles };
+  const deleteProfile = Effect.fn("desktop.serviceNowSdk.deleteProfile")(function* (
+    profile: ServiceNowSdkProfile,
+  ) {
+    const profiles = yield* listProfiles;
+    const current = profiles.find((entry) => entry.alias === profile.alias);
+    if (!current) return profiles;
+    if (current.instanceUrl !== profile.instanceUrl)
+      return yield* new ServiceNowSdkError({
+        message:
+          "This profile's instance has changed. Refresh the list and confirm deletion again.",
+      });
+    const status = yield* check;
+    yield* deps.runSdk(status.globalRoot, ["auth", "--delete", profile.alias]);
+    const remaining = yield* listProfiles;
+    if (remaining.some((entry) => entry.alias === profile.alias))
+      return yield* new ServiceNowSdkError({
+        message: "The SDK did not delete the profile. Please try again.",
+      });
+    return remaining;
+  });
+  return { check, install, listProfiles, deleteProfile };
 }
 
 export const serviceNowSdk = Effect.gen(function* () {
@@ -136,11 +159,10 @@ export const serviceNowSdk = Effect.gen(function* () {
   });
   return makeServiceNowSdk({
     runNpm: (args) => runCommand("npm", args),
-    runSdk: (globalRoot) =>
+    runSdk: (globalRoot, args = ["auth", "--list"]) =>
       runCommand("node", [
         environment.path.join(globalRoot, "@servicenow", "sdk", "bin", "index.js"),
-        "auth",
-        "--list",
+        ...args,
       ]),
     readPackage: (globalRoot) =>
       fs

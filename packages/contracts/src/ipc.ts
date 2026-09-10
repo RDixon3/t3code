@@ -1216,6 +1216,11 @@ export const ServiceNowSdkProfileSchema = Schema.Struct({
   instanceUrl: Schema.NonEmptyString,
 });
 export type ServiceNowSdkProfile = typeof ServiceNowSdkProfileSchema.Type;
+export const ServiceNowSdkAuthSessionSchema = Schema.Struct({
+  sessionId: Schema.String,
+  profile: ServiceNowSdkProfileSchema,
+});
+export type ServiceNowSdkAuthSession = typeof ServiceNowSdkAuthSessionSchema.Type;
 
 export const ServiceNowSdkStatusSchema = Schema.Struct({
   installed: Schema.Boolean,
@@ -1223,6 +1228,60 @@ export const ServiceNowSdkStatusSchema = Schema.Struct({
   globalRoot: Schema.String,
 });
 export type ServiceNowSdkStatus = typeof ServiceNowSdkStatusSchema.Type;
+
+export const JiraSiteSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  url: Schema.String,
+});
+export type JiraSite = typeof JiraSiteSchema.Type;
+export const JiraProjectSchema = Schema.Struct({
+  id: Schema.String,
+  key: Schema.String,
+  name: Schema.String,
+});
+export type JiraProject = typeof JiraProjectSchema.Type;
+export const JiraProjectsRequestSchema = Schema.Struct({
+  cloudId: Schema.String,
+  startAt: Schema.Number,
+});
+export const JiraProjectPageSchema = Schema.Struct({
+  projects: Schema.Array(JiraProjectSchema),
+  nextStartAt: Schema.NullOr(Schema.Number),
+});
+export type JiraProjectPage = typeof JiraProjectPageSchema.Type;
+
+export const JiraIssueSchema = Schema.Struct({
+  id: Schema.String,
+  key: Schema.String,
+  summary: Schema.String,
+  issueType: Schema.String,
+  status: Schema.String,
+  category: Schema.Literals(["new", "indeterminate", "done"]),
+  assignee: Schema.NullOr(Schema.String),
+  priority: Schema.NullOr(Schema.String),
+});
+export type JiraIssue = typeof JiraIssueSchema.Type;
+export const JiraIssuesRequestSchema = Schema.Struct({
+  cloudId: Schema.String,
+  projectKey: Schema.String,
+  nextPageToken: Schema.optionalKey(Schema.String),
+});
+export const JiraIssuePageSchema = Schema.Struct({
+  issues: Schema.Array(JiraIssueSchema),
+  nextPageToken: Schema.NullOr(Schema.String),
+});
+export type JiraIssuePage = typeof JiraIssuePageSchema.Type;
+export const JiraIssueTargetSchema = Schema.Struct({
+  cloudId: Schema.String,
+  issueKey: Schema.String,
+});
+export const JiraTransitionSchema = Schema.Struct({ id: Schema.String, name: Schema.String });
+export type JiraTransition = typeof JiraTransitionSchema.Type;
+export const JiraTransitionRequestSchema = Schema.Struct({
+  ...JiraIssueTargetSchema.fields,
+  transitionId: Schema.String,
+});
 
 export const JiraConnectionStatusSchema = Schema.Struct({
   connected: Schema.Boolean,
@@ -1254,8 +1313,27 @@ export interface DesktopBridge {
   connectJira?: () => Promise<JiraConnectionStatus>;
   testJiraConnection?: () => Promise<JiraConnectionStatus>;
   disconnectJira?: () => Promise<JiraConnectionStatus>;
+  listJiraSites?: () => Promise<ReadonlyArray<JiraSite>>;
+  listJiraProjects?: (input: typeof JiraProjectsRequestSchema.Type) => Promise<JiraProjectPage>;
+  listJiraIssues?: (input: typeof JiraIssuesRequestSchema.Type) => Promise<JiraIssuePage>;
+  getJiraTransitions?: (
+    input: typeof JiraIssueTargetSchema.Type,
+  ) => Promise<ReadonlyArray<JiraTransition>>;
+  transitionJiraIssue?: (input: typeof JiraTransitionRequestSchema.Type) => Promise<void>;
   checkServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
   listServiceNowSdkProfiles?: () => Promise<ReadonlyArray<ServiceNowSdkProfile>>;
+  deleteServiceNowSdkProfile?: (
+    profile: ServiceNowSdkProfile,
+  ) => Promise<ReadonlyArray<ServiceNowSdkProfile>>;
+  addServiceNowSdkProfile?: (profile: ServiceNowSdkProfile) => Promise<ServiceNowSdkAuthSession>;
+  completeServiceNowSdkProfile?: (input: {
+    sessionId: string;
+    code: string;
+  }) => Promise<ServiceNowSdkProfile>;
+  cancelServiceNowSdkProfile?: () => Promise<void>;
+  addBasicServiceNowSdkProfile?: (
+    input: ServiceNowSdkProfile & { username: string; password: string },
+  ) => Promise<ServiceNowSdkProfile>;
   installServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
   getAppBranding: () => DesktopAppBranding | null;
   /** The desktop client's OS platform, read from Electron's preload process. */

@@ -48,6 +48,7 @@ import {
 } from "../../hooks/useSettings";
 import { useT3ProjectFileState } from "../../hooks/useT3ProjectFileScripts";
 import { ProjectActionsList } from "./ProjectActionsList";
+import { ProjectJiraLink } from "./ProjectJiraLink";
 import { isElectron } from "../../env";
 import {
   decodeProjectScriptKeybindingRule,
@@ -989,6 +990,17 @@ function ProjectDetail({
                   Choose file
                 </Button>
               </div>
+            }
+          />
+          <SettingsRow
+            title="Jira project"
+            description="Link this project to a Jira site and project key across Pursue, Manage and Build."
+            control={
+              <ProjectJiraLink
+                key={`${representative.environmentId}:${representative.id}`}
+                environmentId={representative.environmentId}
+                projectId={representative.id}
+              />
             }
           />
           <SettingsRow
