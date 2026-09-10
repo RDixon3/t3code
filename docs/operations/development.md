@@ -19,6 +19,7 @@ Prefer a container? See [Dev container](../internals/devcontainer.md) for VS Cod
 
 Use `vp run dev` for server and web, or `vp run dev:desktop` for the Electron client.
 `dev:server` and `dev:web` start those processes separately.
+See the [mobile README](../../apps/mobile/README.md) for native builds and Metro.
 
 Flags go directly after the task name, for example `vp run dev --home-dir /tmp/t3code-dev`.
 Add `--browser` to open a browser automatically.
@@ -65,7 +66,7 @@ vp lint <files>
 vp run --filter <package> typecheck
 ```
 
-CI owns the full suite; see
+Use `vp run lint:mobile` for native mobile changes. CI owns the full suite; see
 [ci.yml](../../.github/workflows/ci.yml) for its current jobs.
 The [manual Windows lane](../../.github/workflows/windows-tests.yml) is available for focused
 Windows investigation while that suite is not a required gate.
@@ -94,6 +95,7 @@ Local artifact builds are unsigned by default and write to `release/`:
 
 ```sh
 vp run dist:desktop:dmg
+vp run dist:desktop:linux
 vp run dist:desktop:win
 ```
 
@@ -101,13 +103,39 @@ DMGs default to the host architecture. Use `--arch` to choose another target and
 to retain packaging files for inspection. Run `vp run dist:desktop:artifact --help` for other
 options.
 
+### Linux AppImage prerequisites
+
+Build on Linux because the browser-secret helper links against the host's libsecret. Install
+Rust, C/C++ build tools, libsecret development headers, pkg-config, and ImageMagick.
+
+Ubuntu and Debian:
+
+```sh
+sudo apt-get update
+sudo apt-get install cargo rustc build-essential libsecret-1-dev pkg-config imagemagick
+```
+
+Fedora:
+
+```sh
+sudo dnf install rust cargo gcc gcc-c++ make libsecret-devel pkgconf-pkg-config ImageMagick
+```
+
+Arch Linux:
+
+```sh
+sudo pacman -S rust base-devel libsecret pkgconf imagemagick
+```
+
+The C toolchain, pkg-config, and libsecret headers are also needed for Linux desktop development.
+
 ### macOS DMG prerequisites
 
 Install the Xcode Command Line Tools with `xcode-select --install` and install Rust.
-For the supported Apple Silicon build, add its Rust target:
+For a cross-architecture or universal build, add the requested Rust targets:
 
 ```sh
-rustup target add aarch64-apple-darwin
+rustup target add aarch64-apple-darwin x86_64-apple-darwin
 ```
 
 ### Windows installer prerequisites
@@ -118,12 +146,15 @@ architecture. Add its Rust target:
 
 ```powershell
 rustup target add x86_64-pc-windows-msvc
+# For an ARM64 installer:
+rustup target add aarch64-pc-windows-msvc
 ```
 
 NSIS is downloaded by electron-builder. WSL support additionally needs a Linux node-pty prebuild;
-see the [release runbook](./release.md).
+see the [release runbook](./release.md#windows-payload-topology-and-update-validation).
 
-### CoCo releases
+### Signing and passkeys
 
-The CoCo release workflow applies branding and ad-hoc signing in its build checkout.
-See the [release runbook](./release.md). Do not apply that build-only overlay to your development checkout.
+Add `--signed` after configuring the platform credentials in the
+[release runbook](./release.md). macOS passkeys need a signed, provisioned app; follow the
+[Connect setup](./connect-setup.md#desktop-passkeys) for local signing and renderer HMR.

@@ -5,6 +5,7 @@ node_modules
 *.log
 *.tsbuildinfo
 apps/*/dist
+infra/*/dist
 .astro
 packages/*/dist
 .env
@@ -27,9 +28,13 @@ squashfs-root/
 .plans/
 dist-electron/
 .electron-runtime/
+.showcase/
+apps/mobile/.showcase/
+artifacts/app-store/screenshots/
 .github/pr-assets/
 native/**/target/
 node_modules/
+.alchemy/
 *.log
 .env*
 !.env.example

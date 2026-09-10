@@ -5,7 +5,8 @@ credentials for reaching environments, and managed tunnel allocations. After
 bootstrap, clients send application traffic through the environment's tunnel
 hostname; the relay Worker does not proxy their HTTP or WebSocket sessions.
 
-This document describes the retained client/server protocol. The hosted relay implementation and deployment runbook are not included in CoCo.
+Clerk, deployment, and native authentication setup live in the
+[Connect setup runbook](../operations/connect-setup.md).
 
 ## The relay is a trusted broker
 
@@ -24,7 +25,7 @@ verifies those bindings before returning a credential. This prevents a different
 process behind the tunnel from impersonating the linked environment. The checks
 meet in the
 [environment cloud handlers](../../apps/server/src/cloud/http.ts) and
-upstream relay connector.
+[relay connector](../../infra/relay/src/environments/EnvironmentConnector.ts).
 
 The relay holds the signing authority for mint requests. DPoP protects an honest
 exchange from credential reuse; it does not make a compromised relay signing
@@ -62,7 +63,7 @@ resources. A delayed cleanup must not delete a tunnel reused by a concurrent
 restart or relink. Unlink commits authorization revocation before external
 teardown, because a database failure must leave the active link usable. Failed
 teardown retains enough state to retry. See the
-upstream managed endpoint lifecycle.
+[managed endpoint lifecycle](../../infra/relay/src/environments/ManagedEndpointProvider.ts).
 
 ## OAuth traps
 
