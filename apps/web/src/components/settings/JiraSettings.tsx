@@ -1,4 +1,4 @@
-import type { JiraConnectionStatus, JiraMcpVersion } from "@t3tools/contracts";
+import type { JiraConnectionStatus } from "@t3tools/contracts";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
 import { SettingsSection } from "./settingsLayout";
@@ -6,13 +6,12 @@ import { SettingsSection } from "./settingsLayout";
 export function JiraSettings() {
   return (
     <SettingsSection id="jira" title="Jira">
-      <JiraConnectionSettings version="v1" />
-      <JiraConnectionSettings version="v2" />
+      <JiraConnectionSettings />
     </SettingsSection>
   );
 }
 
-function JiraConnectionSettings({ version }: { version: JiraMcpVersion }) {
+function JiraConnectionSettings() {
   const bridge = window.desktopBridge;
   const available = Boolean(
     bridge?.connectJira &&
@@ -29,7 +28,7 @@ function JiraConnectionSettings({ version }: { version: JiraMcpVersion }) {
     if (!bridge?.getJiraConnectionStatus) return;
     const id = ++request.current;
     void bridge
-      .getJiraConnectionStatus(version)
+      .getJiraConnectionStatus()
       .then((result) => {
         if (id === request.current) setStatus(result);
       })
@@ -43,7 +42,7 @@ function JiraConnectionSettings({ version }: { version: JiraMcpVersion }) {
     return () => {
       request.current++;
     };
-  }, [bridge, version]);
+  }, [bridge]);
 
   async function run(action: "connect" | "test" | "disconnect") {
     const command =
@@ -58,12 +57,12 @@ function JiraConnectionSettings({ version }: { version: JiraMcpVersion }) {
     setError(null);
     setStatus((current) => (current ? { ...current, checkedAt: null } : null));
     try {
-      const result = await command(version);
+      const result = await command();
       if (id === request.current) setStatus(result);
     } catch (cause) {
       if (id === request.current) {
         setError(cause instanceof Error ? cause.message : "Jira connection failed. Try again.");
-        const latest = await bridge?.getJiraConnectionStatus?.(version).catch(() => null);
+        const latest = await bridge?.getJiraConnectionStatus?.().catch(() => null);
         if (id === request.current && latest) setStatus(latest);
       }
     } finally {
@@ -73,14 +72,12 @@ function JiraConnectionSettings({ version }: { version: JiraMcpVersion }) {
 
   return (
     <div className="space-y-3 border-b border-border/60 p-4 last:border-b-0">
-      <p className="font-medium">Atlassian Rovo MCP {version}</p>
+      <p className="font-medium">Atlassian Rovo MCP</p>
       <p className="text-sm text-muted-foreground">
         Sign in through Atlassian using your organization’s SSO. This connection applies to all
-        projects on this desktop. Each version has its own credentials and diagnostics.
+        projects on this desktop.
       </p>
-      <p className="break-all text-xs text-muted-foreground">
-        https://mcp.atlassian.com/{version}/mcp
-      </p>
+      <p className="break-all text-xs text-muted-foreground">https://mcp.atlassian.com/v1/mcp</p>
       {!available ? (
         <p className="text-sm text-muted-foreground">Available in the desktop app.</p>
       ) : (

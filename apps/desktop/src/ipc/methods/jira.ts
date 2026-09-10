@@ -1,8 +1,4 @@
-import {
-  JiraConnectionStatusSchema,
-  JiraMcpVersionSchema,
-  type JiraMcpVersion,
-} from "@t3tools/contracts";
+import { JiraConnectionStatusSchema } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as FileSystem from "effect/FileSystem";
@@ -35,62 +31,49 @@ export const installJiraIpc = Effect.fn("desktop.ipc.installJira")(function* () 
       );
     }
   });
-  const connections = new Map<JiraMcpVersion, ReturnType<typeof makeJiraConnection>>();
-  for (const version of ["v1", "v2"] as const) {
-    // Preserve existing v1 credentials; v2 must register and authorize independently.
-    const credentialsPath = environment.path.join(
-      environment.stateDir,
-      version === "v1" ? "jira-credentials.enc" : "jira-v2-credentials.enc",
-    );
-    const connection = makeJiraConnection(
-      {
-        read: () =>
-          Effect.runPromise(
-            Effect.gen(function* () {
-              const bytes = yield* fs
-                .readFile(credentialsPath)
-                .pipe(
-                  Effect.catch((error) =>
-                    error.reason._tag === "NotFound"
-                      ? Effect.succeed(undefined)
-                      : Effect.fail(error),
-                  ),
-                );
-              if (!bytes) return undefined;
-              yield* requireEncryption;
-              return yield* storage.decryptString(bytes);
-            }),
-          ),
-        write: (value) =>
-          Effect.runPromise(
-            Effect.gen(function* () {
-              yield* requireEncryption;
-              const encrypted = yield* storage.encryptString(value);
-              yield* fs.makeDirectory(environment.stateDir, { recursive: true });
-              const temporaryPath = `${credentialsPath}.tmp`;
-              yield* fs.writeFile(temporaryPath, encrypted, { mode: 0o600 });
-              yield* fs.rename(temporaryPath, credentialsPath);
-            }),
-          ),
-        remove: () => Effect.runPromise(fs.remove(credentialsPath, { force: true })),
-        openExternal: (url) =>
-          Effect.runPromise(
-            Effect.gen(function* () {
-              yield* requireEncryption;
-              if (!(yield* shell.openExternal(url))) {
-                return yield* Effect.fail(
-                  new JiraConnectionError({
-                    message: "Could not open Atlassian sign-in in your browser.",
-                  }),
-                );
-              }
-            }),
-          ),
-      },
-      version,
-    );
-    connections.set(version, connection);
-  }
+  const credentialsPath = environment.path.join(environment.stateDir, "jira-credentials.enc");
+  const connection = makeJiraConnection({
+    read: () =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const bytes = yield* fs
+            .readFile(credentialsPath)
+            .pipe(
+              Effect.catch((error) =>
+                error.reason._tag === "NotFound" ? Effect.succeed(undefined) : Effect.fail(error),
+              ),
+            );
+          if (!bytes) return undefined;
+          yield* requireEncryption;
+          return yield* storage.decryptString(bytes);
+        }),
+      ),
+    write: (value) =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          yield* requireEncryption;
+          const encrypted = yield* storage.encryptString(value);
+          yield* fs.makeDirectory(environment.stateDir, { recursive: true });
+          const temporaryPath = `${credentialsPath}.tmp`;
+          yield* fs.writeFile(temporaryPath, encrypted, { mode: 0o600 });
+          yield* fs.rename(temporaryPath, credentialsPath);
+        }),
+      ),
+    remove: () => Effect.runPromise(fs.remove(credentialsPath, { force: true })),
+    openExternal: (url) =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          yield* requireEncryption;
+          if (!(yield* shell.openExternal(url))) {
+            return yield* Effect.fail(
+              new JiraConnectionError({
+                message: "Could not open Atlassian sign-in in your browser.",
+              }),
+            );
+          }
+        }),
+      ),
+  });
   for (const [channel, action] of [
     [Channels.JIRA_STATUS_CHANNEL, "status"],
     [Channels.JIRA_CONNECT_CHANNEL, "connect"],
@@ -100,16 +83,14 @@ export const installJiraIpc = Effect.fn("desktop.ipc.installJira")(function* () 
     yield* ipc.handle(
       DesktopIpc.makeIpcMethod({
         channel,
-        payload: Schema.UndefinedOr(JiraMcpVersionSchema),
+        payload: Schema.Void,
         result: JiraConnectionStatusSchema,
-        handler: (requestedVersion) =>
+        handler: () =>
           Effect.tryPromise({
             try: async () => {
-              const version = requestedVersion ?? "v1";
-              const connection = connections.get(version)!;
               const diagnosticsPath = environment.path.join(
                 environment.logDir,
-                `jira-${version}-diagnostics.log`,
+                "jira-v1-diagnostics.log",
               );
               try {
                 const result = await connection[action]();

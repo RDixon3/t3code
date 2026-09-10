@@ -10,7 +10,7 @@ import {
   OAuthTokensSchema,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { JiraConnectionStatus, JiraMcpVersion } from "@t3tools/contracts";
+import type { JiraConnectionStatus } from "@t3tools/contracts";
 import * as NodeCrypto from "node:crypto";
 import { listenForOAuth } from "./oauthCallback.ts";
 import { makeJiraDiagnostics } from "./jiraDiagnostics.ts";
@@ -25,22 +25,15 @@ type Credentials = {
 };
 
 /** One app connection, independent of agent providers and project/thread state. */
-export function makeJiraConnection(
-  deps: {
-    read: () => Promise<string | undefined>;
-    write: (value: string) => Promise<void>;
-    remove: () => Promise<void>;
-    openExternal: (url: string) => Promise<void>;
-    probe?: (provider: OAuthClientProvider, signal: AbortSignal) => Promise<void>;
-    finishAuth?: (
-      provider: OAuthClientProvider,
-      code: string,
-      signal: AbortSignal,
-    ) => Promise<void>;
-  },
-  version: JiraMcpVersion = "v1",
-) {
-  const endpoint = `https://mcp.atlassian.com/${version}/mcp`;
+export function makeJiraConnection(deps: {
+  read: () => Promise<string | undefined>;
+  write: (value: string) => Promise<void>;
+  remove: () => Promise<void>;
+  openExternal: (url: string) => Promise<void>;
+  probe?: (provider: OAuthClientProvider, signal: AbortSignal) => Promise<void>;
+  finishAuth?: (provider: OAuthClientProvider, code: string, signal: AbortSignal) => Promise<void>;
+}) {
+  const endpoint = "https://mcp.atlassian.com/v1/mcp";
   const diagnostics = makeJiraDiagnostics();
   let stage = "idle";
   let pending: { abort: AbortController; done: Promise<JiraConnectionStatus> } | undefined;
@@ -194,9 +187,7 @@ export function makeJiraConnection(
       const saved = interactive ? undefined : await load();
       diagnostics.add(
         "credentials",
-        saved
-          ? "Using stored credentials for this endpoint."
-          : "Starting fresh authorization; no credentials shared between versions.",
+        saved ? "Using stored credentials for this endpoint." : "Starting fresh authorization.",
       );
       if (!interactive && !saved) throw new Error("Connect to Jira first.");
       const state = NodeCrypto.randomUUID();
@@ -214,7 +205,7 @@ export function makeJiraConnection(
       const provider: OAuthClientProvider = {
         redirectUrl: credentials.redirectUrl,
         clientMetadata: {
-          client_name: `CoCo Jira ${version}`,
+          client_name: "CoCo Jira v1",
           redirect_uris: [credentials.redirectUrl],
           grant_types: ["authorization_code", "refresh_token"],
           response_types: ["code"],
@@ -285,7 +276,7 @@ export function makeJiraConnection(
         if (cause && typeof cause === "object" && "code" in cause)
           diagnostics.add("error code", String(cause.code));
         throw new Error(
-          `Jira ${version} failed at ${stage}. ${
+          `Jira failed at ${stage}. ${
             diagnostics
               .text()
               .split("\n")
