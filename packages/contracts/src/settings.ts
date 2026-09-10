@@ -922,7 +922,31 @@ export const BackgroundActivitySettings = Schema.Struct({
 }).pipe(Schema.withDecodingDefault(Effect.succeed({})));
 export type BackgroundActivitySettings = typeof BackgroundActivitySettings.Type;
 
+export const CoCoProjectContext = Schema.Struct({
+  sdk: Schema.optionalKey(
+    Schema.NullOr(
+      Schema.Struct({
+        alias: Schema.NonEmptyString,
+        instanceUrl: Schema.NonEmptyString,
+      }),
+    ),
+  ),
+  jira: Schema.optionalKey(
+    Schema.NullOr(
+      Schema.Struct({
+        siteUrl: Schema.NonEmptyString,
+        projectKey: Schema.NonEmptyString,
+        boardId: Schema.optionalKey(Schema.NonEmptyString),
+      }),
+    ),
+  ),
+});
+export type CoCoProjectContext = typeof CoCoProjectContext.Type;
+
 export const ServerSettings = Schema.Struct({
+  cocoProjectContexts: Schema.Record(ProjectId, CoCoProjectContext).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
+  ),
   // Legacy token-by-token assistant output. Deliberately a fresh key (was
   // `enableAssistantStreaming`): decoding drops the old key, so everyone,
   // including prior opt-ins, resets to the buffered default.
@@ -1233,6 +1257,7 @@ export const ServerSettingsPatch = Schema.Struct({
   projectAutoPullOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
   ),
+  cocoProjectContexts: Schema.optionalKey(Schema.Record(ProjectId, CoCoProjectContext)),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
   sidebarAutoSettleOnMerge: Schema.optionalKey(Schema.Boolean),

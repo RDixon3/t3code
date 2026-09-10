@@ -19,6 +19,18 @@ Reset that list to use shared actions again. Existing project actions are preser
 Project names, icons, removal, and importing actions from a checkout remain project-specific.
 When there are several checkouts, the checkout picker selects which actions and grouping to edit.
 
+## ServiceNow SDK profile
+
+In CoCo's local desktop Build view, choose **SDK** beside the model picker to select an existing
+ServiceNow SDK auth profile. The selection is remembered for that project on that environment,
+including its worktree chats. Install the global SDK through **Settings → ServiceNow** and create
+profiles with the SDK CLI; use **Refresh** to reload them.
+
+The selected alias and instance are supplied as context when each turn starts. Queued turns use
+the current selection; running turns are unchanged. **None** clears the selection without changing
+the SDK's machine default or restricting terminal access. Context is omitted from CoCo's displayed
+messages but may appear in the provider's own history. Remote and WSL profile discovery are not supported.
+
 ## Project icons
 
 Choose an icon, emoji, or image from the project to make it easier to recognize. The choice applies

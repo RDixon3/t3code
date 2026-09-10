@@ -8,6 +8,7 @@ import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/unstable/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import { DesktopEnvironment } from "../app/DesktopEnvironment.ts";
+import { parseServiceNowSdkProfiles } from "./serviceNowSdkProfiles.ts";
 
 export class ServiceNowSdkError extends Schema.TaggedError<ServiceNowSdkError>()(
   "ServiceNowSdkError",
@@ -27,6 +28,7 @@ const installLock = Semaphore.makeUnsafe(1);
 export function makeServiceNowSdk(deps: {
   runNpm: (args: ReadonlyArray<string>) => Effect.Effect<string, ServiceNowSdkError>;
   readPackage: (globalRoot: string) => Effect.Effect<string | null, ServiceNowSdkError>;
+  runSdk: (globalRoot: string) => Effect.Effect<string, ServiceNowSdkError>;
 }) {
   const check = Effect.gen(function* () {
     const globalRoot = (yield* deps.runNpm(["root", "--global"])).trim();
@@ -60,15 +62,33 @@ export function makeServiceNowSdk(deps: {
       return result;
     }),
   );
-  return { check, install };
+  const listProfiles = Effect.gen(function* () {
+    const status = yield* check;
+    if (!status.installed)
+      return yield* new ServiceNowSdkError({
+        message: "Install the global ServiceNow SDK in Settings first.",
+      });
+    const output = yield* deps.runSdk(status.globalRoot);
+    return yield* Effect.try({
+      try: () => parseServiceNowSdkProfiles(output),
+      catch: () =>
+        new ServiceNowSdkError({
+          message: "Could not read SDK profiles. Check now-sdk auth --list and refresh.",
+        }),
+    });
+  });
+  return { check, install, listProfiles };
 }
 
 export const serviceNowSdk = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment;
   const fs = yield* FileSystem.FileSystem;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-  const runNpm = Effect.fn("desktop.serviceNowSdk.npm")(function* (args: ReadonlyArray<string>) {
-    const command = yield* resolveSpawnCommand("npm", args);
+  const runCommand = Effect.fn("desktop.serviceNowSdk.command")(function* (
+    executable: string,
+    args: ReadonlyArray<string>,
+  ) {
+    const command = yield* resolveSpawnCommand(executable, args);
     return yield* Effect.scoped(
       Effect.gen(function* () {
         const child = yield* spawner.spawn(
@@ -94,23 +114,34 @@ export const serviceNowSdk = Effect.gen(function* () {
         );
         if (Number(exitCode) !== 0)
           return yield* new ServiceNowSdkError({
-            message: `npm exited with code ${exitCode}. ${stderr || stdout}`.trim(),
+            message:
+              executable === "npm"
+                ? `npm exited with code ${exitCode}. ${stderr || stdout}`.trim()
+                : `ServiceNow SDK exited with code ${exitCode}. Check now-sdk auth --list.`,
           });
         return stdout;
       }),
     ).pipe(
-      Effect.timeout(args[0] === "install" ? "10 minutes" : "15 seconds"),
+      Effect.timeout(
+        args[0] === "install" ? "10 minutes" : executable === "node" ? "45 seconds" : "15 seconds",
+      ),
       Effect.mapError((error) =>
         isServiceNowSdkError(error)
           ? error
           : new ServiceNowSdkError({
-              message: `Could not run npm: ${error.message}. Ensure Node.js and npm are available to the desktop app.`,
+              message: `Could not run ${executable}: ${error.message}. Ensure Node.js and npm are available to the desktop app.`,
             }),
       ),
     );
   });
   return makeServiceNowSdk({
-    runNpm,
+    runNpm: (args) => runCommand("npm", args),
+    runSdk: (globalRoot) =>
+      runCommand("node", [
+        environment.path.join(globalRoot, "@servicenow", "sdk", "bin", "index.js"),
+        "auth",
+        "--list",
+      ]),
     readPackage: (globalRoot) =>
       fs
         .readFileString(environment.path.join(globalRoot, "@servicenow", "sdk", "package.json"))

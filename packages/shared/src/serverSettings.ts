@@ -247,6 +247,17 @@ export function applyServerSettingsPatch(
           ),
         }
       : {}),
+    ...(patch.cocoProjectContexts !== undefined
+      ? {
+          cocoProjectContexts: Object.fromEntries([
+            ...Object.entries(current.cocoProjectContexts),
+            ...Object.entries(patch.cocoProjectContexts).map(([id, context]) => [
+              id,
+              { ...current.cocoProjectContexts[id as ProjectId], ...context },
+            ]),
+          ]),
+        }
+      : {}),
     ...(patch.defaultModelSelection !== undefined
       ? { defaultModelSelection: patch.defaultModelSelection }
       : {}),

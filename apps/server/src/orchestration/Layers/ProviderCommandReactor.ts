@@ -1,3 +1,4 @@
+import { withCoCoProjectContext } from "../cocoProjectContext.ts";
 import {
   type ChatAttachment,
   CommandId,
@@ -858,7 +859,14 @@ const make = Effect.gen(function* () {
     if (input.modelSelection !== undefined) {
       threadModelSelections.set(input.threadId, input.modelSelection);
     }
-    const normalizedInput = toNonEmptyProviderInput(input.messageText);
+    const settings = yield* serverSettingsService.getSettings;
+    const normalizedInput = toNonEmptyProviderInput(
+      withCoCoProjectContext(
+        input.messageText,
+        thread.projectId,
+        settings.cocoProjectContexts[thread.projectId],
+      ),
+    );
     const normalizedAttachments = input.attachments ?? [];
     const activeSession = yield* providerService
       .listSessions()

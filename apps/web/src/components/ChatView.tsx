@@ -319,6 +319,7 @@ import {
 } from "../state/entities";
 import { environmentShell } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
+import { ServiceNowSdkProfilePicker } from "./chat/ServiceNowSdkProfilePicker";
 import { createPageScrollController, type PageScrollKey } from "./chat/pageScrollController";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
@@ -8339,6 +8340,15 @@ export default function ChatView(props: ChatViewProps) {
                       <ComposerSurface.Host>
                         <div ref={attachDraftHeroComposerAnchorRef} className="relative z-10">
                           <ChatComposer
+                            projectContextControl={
+                              activeProject ? (
+                                <ServiceNowSdkProfilePicker
+                                  key={`${environmentId}:${activeProject.id}`}
+                                  environmentId={environmentId}
+                                  projectId={activeProject.id}
+                                />
+                              ) : null
+                            }
                             composerRef={composerRef}
                             composerDraftTarget={composerDraftTarget}
                             environmentId={environmentId}

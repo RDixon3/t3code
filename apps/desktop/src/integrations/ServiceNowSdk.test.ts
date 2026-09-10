@@ -10,6 +10,7 @@ function fixture(initial: string | null, installResult: string | null = metadata
   const commands: ReadonlyArray<string>[] = [];
   const paths: string[] = [];
   const sdk = makeServiceNowSdk({
+    runSdk: () => Effect.succeed("No credentials found"),
     runNpm: (args) =>
       Effect.sync(() => {
         commands.push(args);
@@ -29,6 +30,28 @@ function fixture(initial: string | null, installResult: string | null = metadata
 }
 
 describe("global ServiceNow SDK", () => {
+  it.effect("lists existing global profiles and propagates discovery failures", () =>
+    Effect.gen(function* () {
+      const roots: string[] = [];
+      let fail = false;
+      const sdk = makeServiceNowSdk({
+        runNpm: () => Effect.succeed("/global/node_modules"),
+        readPackage: () => Effect.succeed(metadata),
+        runSdk: (root) => {
+          roots.push(root);
+          return fail
+            ? Effect.fail(new ServiceNowSdkError({ message: "SDK failed" }))
+            : Effect.succeed("[dev]\n host = https://dev.service-now.com");
+        },
+      });
+      expect(yield* sdk.listProfiles).toEqual([
+        { alias: "dev", instanceUrl: "https://dev.service-now.com" },
+      ]);
+      expect(roots).toEqual(["/global/node_modules"]);
+      fail = true;
+      expect(yield* Effect.flip(sdk.listProfiles)).toMatchObject({ message: "SDK failed" });
+    }),
+  );
   it.effect("checks only npm's global root and reports the installed version", () =>
     Effect.gen(function* () {
       const { sdk, commands, paths } = fixture(metadata);
@@ -83,6 +106,7 @@ describe("global ServiceNow SDK", () => {
   it.effect("distinguishes unavailable npm and corrupt metadata from a missing SDK", () =>
     Effect.gen(function* () {
       const unavailable = makeServiceNowSdk({
+        runSdk: () => Effect.succeed("No credentials found"),
         runNpm: () => Effect.fail(new ServiceNowSdkError({ message: "npm unavailable" })),
         readPackage: () => Effect.succeed(null),
       });

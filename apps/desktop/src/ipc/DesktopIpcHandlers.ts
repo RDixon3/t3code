@@ -3,7 +3,11 @@ import * as Effect from "effect/Effect";
 import * as DesktopIpc from "./DesktopIpc.ts";
 import { installJiraIpc } from "./methods/jira.ts";
 import { installServiceNowIpc } from "./methods/serviceNowConnection.ts";
-import { checkServiceNowSdk, installServiceNowSdk } from "./methods/serviceNowSdk.ts";
+import {
+  checkServiceNowSdk,
+  installServiceNowSdk,
+  listServiceNowSdkProfiles,
+} from "./methods/serviceNowSdk.ts";
 import { getClientSettings, setClientSettings } from "./methods/clientSettings.ts";
 import {
   clearConnectionCatalog,
@@ -72,6 +76,7 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* installJiraIpc();
   yield* installServiceNowIpc();
   yield* ipc.handle(checkServiceNowSdk);
+  yield* ipc.handle(listServiceNowSdkProfiles);
   yield* ipc.handle(installServiceNowSdk);
   yield* PreviewIpc.installPreviewEventForwarding();
 

@@ -3,6 +3,7 @@ import {
   DEFAULT_SERVER_SETTINGS,
   ProviderDriverKind,
   ProviderInstanceId,
+  ProjectId,
   resolveProviderInstanceEnabled,
   ServerSettings,
   ServerSettingsPatch,
@@ -270,6 +271,25 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           Option.getOrUndefined(firstChange)?.providers.codex.binaryPath,
           "/usr/local/bin/codex-next",
         );
+      }),
+    ).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
+  it.effect("persists CoCo project context and explicit clearing", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const config = yield* ServerConfig.ServerConfig;
+        const fs = yield* FileSystem.FileSystem;
+        const settings = yield* ServerSettingsModule.ServerSettingsService;
+        const id = ProjectId.make("coco-project");
+        const read = fs
+          .readFileString(config.settingsPath)
+          .pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(ServerSettings))));
+        const sdk = { alias: "dev", instanceUrl: "https://dev.service-now.com" };
+        yield* settings.updateSettings({ cocoProjectContexts: { [id]: { sdk } } });
+        assert.deepStrictEqual((yield* read).cocoProjectContexts[id], { sdk });
+        yield* settings.updateSettings({ cocoProjectContexts: { [id]: { sdk: null } } });
+        assert.deepStrictEqual((yield* read).cocoProjectContexts[id], { sdk: null });
       }),
     ).pipe(Effect.provide(makeServerSettingsLayer())),
   );

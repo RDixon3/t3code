@@ -1239,6 +1239,7 @@ export interface ChatComposerHandle {
 // --------------------------------------------------------------------------
 
 export interface ChatComposerProps {
+  projectContextControl?: ReactNode;
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
   attachmentUploadsCapabilityKnown: boolean;
@@ -4190,6 +4191,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         onInstanceModelChange={onProviderModelSelect}
         onOpenProviderSetup={onOpenProviderSetup}
       />
+      {props.projectContextControl}
 
       {composerControlsCompact ? (
         <CompactComposerControlsMenu

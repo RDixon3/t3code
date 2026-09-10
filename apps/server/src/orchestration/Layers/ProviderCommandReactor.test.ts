@@ -119,6 +119,7 @@ describe("ProviderCommandReactor", () => {
     | OrchestrationEngineService
     | ProviderCommandReactor
     | ProjectionSnapshotQuery
+    | ServerSettingsService
     | SqlClient.SqlClient,
     unknown
   > | null = null;
@@ -166,6 +167,7 @@ describe("ProviderCommandReactor", () => {
   });
 
   async function createHarness(input?: {
+    readonly sendTurnEffect?: () => Effect.Effect<void>;
     readonly baseDir?: string;
     readonly threadModelSelection?: ModelSelection;
     readonly sessionModelSwitch?: "unsupported" | "in-session";
@@ -262,10 +264,12 @@ describe("ProviderCommandReactor", () => {
       );
     });
     const sendTurn = vi.fn((_: unknown) =>
-      Effect.succeed({
-        threadId: ThreadId.make("thread-1"),
-        turnId: asTurnId("turn-1"),
-      }),
+      (input?.sendTurnEffect?.() ?? Effect.void).pipe(
+        Effect.as({
+          threadId: ThreadId.make("thread-1"),
+          turnId: asTurnId("turn-1"),
+        }),
+      ),
     );
     const compactThread = vi.fn((_: ThreadId) => input?.compactThreadEffect?.() ?? Effect.void);
     const interruptTurn = vi.fn((_: unknown) => input?.interruptTurnEffect?.() ?? Effect.void);
@@ -579,6 +583,7 @@ describe("ProviderCommandReactor", () => {
 
     return {
       engine,
+      settings: await runtime.runPromise(Effect.service(ServerSettingsService)),
       snapshotQuery,
       readModel: () => Effect.runPromise(snapshotQuery.getSnapshot()),
       readPendingTurnStarts: () =>
@@ -826,6 +831,117 @@ describe("ProviderCommandReactor", () => {
           input: text,
           ...(attachments.length > 0 ? { attachments } : {}),
         }),
+      );
+    }),
+  );
+
+  effectIt.effect.each([false, true])(
+    "CoCo context stays out of saved messages (resumed: %s)",
+    (resumed) =>
+      Effect.gen(function* () {
+        const sent = yield* Deferred.make<void>();
+        const harness = yield* Effect.promise(() =>
+          createHarness({
+            sendTurnEffect: () => Deferred.succeed(sent, undefined).pipe(Effect.asVoid),
+          }),
+        );
+        const projectId = ProjectId.make("project-1");
+        const threadId = ThreadId.make("thread-1");
+        const createdAt = "2026-01-01T00:00:00.000Z";
+        yield* harness.settings.updateSettings({
+          cocoProjectContexts: {
+            [projectId]: { sdk: { alias: "correct", instanceUrl: "https://dev.service-now.com" } },
+            [ProjectId.make("other-project")]: {
+              sdk: { alias: "wrong", instanceUrl: "https://other.service-now.com" },
+            },
+          },
+        });
+        if (resumed)
+          yield* harness.engine.dispatch({
+            type: "thread.session.set",
+            commandId: CommandId.make("coco-resume"),
+            threadId,
+            createdAt,
+            session: {
+              threadId,
+              providerInstanceId: ProviderInstanceId.make("codex"),
+              providerName: "codex",
+              status: "stopped",
+              runtimeMode: "approval-required",
+              activeTurnId: null,
+              lastError: null,
+              updatedAt: createdAt,
+            },
+          });
+        yield* harness.engine.dispatch({
+          type: "thread.turn.start",
+          commandId: CommandId.make("coco-send"),
+          threadId,
+          message: {
+            messageId: MessageId.make("coco-message"),
+            role: "user",
+            text: "Investigate this",
+            attachments: [],
+          },
+          interactionMode: "default",
+          runtimeMode: "approval-required",
+          createdAt,
+        });
+        yield* Deferred.await(sent);
+        yield* Effect.promise(() => harness.drain());
+        expect(harness.sendTurn).toHaveBeenCalledWith(
+          expect.objectContaining({ input: expect.stringContaining('"alias":"correct"') }),
+        );
+        expect(harness.sendTurn).not.toHaveBeenCalledWith(
+          expect.objectContaining({ input: expect.stringContaining('"alias":"wrong"') }),
+        );
+        const snapshot = yield* harness.snapshotQuery.getSnapshot();
+        expect(
+          snapshot.threads
+            .find((thread) => thread.id === threadId)
+            ?.messages.find((message) => message.id === "coco-message")?.text,
+        ).toBe("Investigate this");
+      }),
+  );
+
+  effectIt.effect("CoCo context reads updated settings when a pending turn starts", () =>
+    Effect.gen(function* () {
+      const activation = yield* Deferred.make<void>();
+      const sent = yield* Deferred.make<void>();
+      const harness = yield* Effect.promise(() =>
+        createHarness({
+          serverActivation: Deferred.await(activation),
+          sendTurnEffect: () => Deferred.succeed(sent, undefined).pipe(Effect.asVoid),
+        }),
+      );
+      const projectId = ProjectId.make("project-1");
+      yield* harness.settings.updateSettings({
+        cocoProjectContexts: {
+          [projectId]: { sdk: { alias: "old", instanceUrl: "https://old.service-now.com" } },
+        },
+      });
+      yield* harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.make("coco-queued"),
+        threadId: ThreadId.make("thread-1"),
+        message: {
+          messageId: MessageId.make("coco-queued-message"),
+          role: "user",
+          text: "Continue",
+          attachments: [],
+        },
+        interactionMode: "default",
+        runtimeMode: "approval-required",
+        createdAt: "2026-01-01T00:00:00.000Z",
+      });
+      yield* harness.settings.updateSettings({
+        cocoProjectContexts: { [projectId]: { sdk: null } },
+      });
+      yield* Deferred.succeed(activation, undefined);
+      yield* Deferred.await(sent);
+      yield* Effect.promise(() => harness.drain());
+      expect(harness.sendTurn).toHaveBeenCalledWith(
+        expect.objectContaining({ input: expect.stringContaining('"serviceNowSdk":null') }),
       );
     }),
   );

@@ -21,6 +21,19 @@ import {
 } from "./serverSettings.ts";
 
 describe("serverSettings helpers", () => {
+  it("persists isolated CoCo selections and clears SDK without erasing Jira", () => {
+    const a = ProjectId.make("a");
+    const b = ProjectId.make("b");
+    expect(DEFAULT_SERVER_SETTINGS.cocoProjectContexts).toEqual({});
+    const sdk = { alias: "dev", instanceUrl: "https://dev.service-now.com" };
+    const jira = { siteUrl: "https://example.atlassian.net", projectKey: "A" };
+    let settings = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
+      cocoProjectContexts: { [a]: { sdk, jira }, [b]: { sdk } },
+    });
+    settings = applyServerSettingsPatch(settings, { cocoProjectContexts: { [a]: { sdk: null } } });
+    expect(settings.cocoProjectContexts[a]).toEqual({ sdk: null, jira });
+    expect(settings.cocoProjectContexts[b]).toEqual({ sdk });
+  });
   it("inherits actions, preserves existing actions, and supports empty overrides and reset", () => {
     const project = { id: ProjectId.make("project-actions"), scripts: [] };
     const action = {

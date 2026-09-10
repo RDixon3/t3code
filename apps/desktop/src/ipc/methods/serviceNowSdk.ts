@@ -1,4 +1,4 @@
-import { ServiceNowSdkStatusSchema } from "@t3tools/contracts";
+import { ServiceNowSdkStatusSchema, ServiceNowSdkProfileSchema } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { serviceNowSdk } from "../../integrations/ServiceNowSdk.ts";
@@ -11,6 +11,15 @@ export const checkServiceNowSdk = DesktopIpc.makeIpcMethod({
   result: ServiceNowSdkStatusSchema,
   handler: Effect.fn("desktop.ipc.checkServiceNowSdk")(function* () {
     return yield* (yield* serviceNowSdk).check;
+  }),
+});
+
+export const listServiceNowSdkProfiles = DesktopIpc.makeIpcMethod({
+  channel: Channels.LIST_SERVICENOW_SDK_PROFILES_CHANNEL,
+  payload: Schema.Void,
+  result: Schema.Array(ServiceNowSdkProfileSchema),
+  handler: Effect.fn("desktop.ipc.listServiceNowSdkProfiles")(function* () {
+    return yield* (yield* serviceNowSdk).listProfiles;
   }),
 });
 
