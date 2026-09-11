@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import * as NodeOS from "node:os";
+import { seedCocoDevTheme } from "./lib/coco-dev-theme.ts";
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -714,6 +715,13 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
     // surprising side effect from a command documented as inert.
     if (input.dryRun) {
       return;
+    }
+
+    // Never seed a shared/live home or mutate state from a web-only runner.
+    if (worktreeHome && baseDir === worktreeHome && input.mode !== "dev:web") {
+      yield* Effect.tryPromise(() => seedCocoDevTheme(baseDir)).pipe(
+        Effect.catch(() => Effect.logWarning("[dev-runner] Could not seed the CoCo theme.")),
+      );
     }
 
     const sharedWebPort = BASE_WEB_PORT + webOffset;

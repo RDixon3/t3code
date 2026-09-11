@@ -28,6 +28,17 @@ describe("CoCo turn context", () => {
     expect(text).toContain('"jira":null');
     expect(text).toContain("replaces earlier CoCo configuration");
   });
+  it("routes Jira work through T3 MCP and prohibits browser fallback even without a selected target", () => {
+    for (const jira of [null, { siteUrl: "https://example.atlassian.net", projectKey: "ABC" }]) {
+      const text = withCoCoProjectContext("Update the issue", "p", { jira });
+      expect(text).toContain("Jira MCP tools exposed by the t3-code server");
+      expect(text).toContain("Do not use browser automation or computer use");
+      expect(text).toContain("stop that part of the task");
+      expect(text).toContain("does not prove that tools are available");
+      expect(text.endsWith("\n\nUpdate the issue")).toBe(true);
+    }
+    expect(withCoCoProjectContext("hello", "p", { sdk })).not.toContain("Jira MCP");
+  });
   it("keeps field contents inside the context boundary", () => {
     expect(
       withCoCoProjectContext("hello", "p", {

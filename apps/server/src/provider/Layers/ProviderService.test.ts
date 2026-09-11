@@ -1464,6 +1464,7 @@ it.effect(
           cwd: fixtureCwd("project"),
           runtimeMode: "full-access",
           threadId,
+          agentInstructions: "Persisted Manage persona",
         });
         firstCodex.updateSession(threadId, (existing) => ({
           ...existing,
@@ -1526,11 +1527,13 @@ it.effect(
       assert.equal(typeof resumedStartInput === "object" && resumedStartInput !== null, true);
       if (resumedStartInput && typeof resumedStartInput === "object") {
         const startPayload = resumedStartInput as {
+          agentInstructions?: string;
           provider?: string;
           cwd?: string;
           resumeCursor?: unknown;
           threadId?: string;
         };
+        assert.equal(startPayload.agentInstructions, "Persisted Manage persona");
         assert.equal(startPayload.provider, "codex");
         assert.equal(startPayload.cwd, fixtureCwd("project"));
         assert.deepEqual(startPayload.resumeCursor, updatedResumeCursor);
@@ -4806,7 +4809,7 @@ describe("agent browser access", () => {
     projectOverride?: boolean,
   ) =>
     Effect.gen(function* () {
-      const issued: Array<ThreadId> = [];
+      const issued: Array<{ threadId: ThreadId; capabilities?: ReadonlyArray<string> }> = [];
       const codex = makeFakeCodexAdapter();
       const providerAdapterLayer = Layer.succeed(
         ProviderAdapterRegistry.ProviderAdapterRegistry,
@@ -4835,6 +4838,7 @@ describe("agent browser access", () => {
         getThreadCheckpointContext: () => Effect.die("unused"),
         getFullThreadDiffContext: () => Effect.die("unused"),
         getThreadRuntimeContext: () => Effect.die("unused"),
+        getThreadCoCoAgent: () => Effect.die(new Error("Not used in this test")),
         getThreadShellById: (requestedThreadId) =>
           Effect.gen(function* () {
             assert.equal(requestedThreadId, threadId);
@@ -4865,7 +4869,7 @@ describe("agent browser access", () => {
       const providerLayer = makeProviderServiceLive({
         issueMcpCredential: (request) =>
           Effect.sync(() => {
-            issued.push(request.threadId);
+            issued.push(request);
             return undefined;
           }),
         revokeMcpCredential: (revoked) => Effect.sync(() => void revokedThreads.push(revoked)),
@@ -4903,14 +4907,15 @@ describe("agent browser access", () => {
       return issued;
     });
 
-  // Credential issuance is the observable that matters: it is the only place a
-  // credential is minted, and `/mcp` accepts nothing else, so withholding it is
-  // what actually denies every provider and external MCP client.
-  it.effect("requests no MCP credential when agent browser access is off", () =>
+  // Jira credentials must never imply browser access.
+  it.effect("requests Jira-only access when agent browser access is off", () =>
     Effect.gen(function* () {
       const issued = yield* startSessionWith(false, asThreadId("thread-browser-off"));
 
-      assert.deepEqual(issued, []);
+      assert.deepEqual(
+        issued.map((request) => request.capabilities),
+        [["jira"]],
+      );
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
@@ -4934,16 +4939,22 @@ describe("agent browser access", () => {
 
       const issued = yield* startSessionWith(true, threadId);
 
-      assert.deepEqual(issued, [threadId]);
+      assert.deepEqual(
+        issued.map((request) => request.capabilities),
+        [["preview", "jira"]],
+      );
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("withholds and revokes MCP credentials when the project disables browser access", () =>
+  it.effect("replaces browser access with Jira-only access when the project disables it", () =>
     Effect.gen(function* () {
       const threadId = asThreadId("thread-project-browser-off");
       revokedThreads.length = 0;
       const issued = yield* startSessionWith(true, threadId, false);
-      assert.deepEqual(issued, []);
+      assert.deepEqual(
+        issued.map((request) => request.capabilities),
+        [["jira"]],
+      );
       assert.deepEqual(revokedThreads, [threadId]);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
@@ -4952,7 +4963,10 @@ describe("agent browser access", () => {
     Effect.gen(function* () {
       const threadId = asThreadId("thread-project-browser-on");
       const issued = yield* startSessionWith(false, threadId, true);
-      assert.deepEqual(issued, [threadId]);
+      assert.deepEqual(
+        issued.map((request) => request.capabilities),
+        [["preview", "jira"]],
+      );
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 });

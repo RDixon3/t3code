@@ -1,3 +1,4 @@
+import { resolveAgent } from "../../coco/library.ts";
 import type {
   OrchestrationClientOrigin,
   OrchestrationEvent,
@@ -219,8 +220,27 @@ const makeOrchestrationEngine = Effect.gen(function* () {
           envelope.command.type === "thread.user-input.dismiss"
             ? yield* projectionSnapshotQuery.getUserInputActivity(envelope.command)
             : Option.none();
+        const command =
+          envelope.command.type === "thread.create"
+            ? {
+                ...envelope.command,
+                cocoAgent: yield* Effect.tryPromise({
+                  try: () =>
+                    resolveAgent(
+                      envelope.command.type === "thread.create"
+                        ? envelope.command.cocoAgentId
+                        : undefined,
+                    ),
+                  catch: (cause) =>
+                    new OrchestrationCommandInvariantError({
+                      commandType: "thread.create",
+                      detail: String(cause),
+                    }),
+                }),
+              }
+            : envelope.command;
         const eventBase = yield* decideOrchestrationCommand({
-          command: envelope.command,
+          command,
           readModel: commandReadModel,
           ...(Option.isSome(userInputActivity)
             ? { userInputActivity: userInputActivity.value }

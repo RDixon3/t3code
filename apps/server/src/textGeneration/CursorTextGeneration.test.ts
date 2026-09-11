@@ -79,6 +79,20 @@ function waitForFileContent(path: string): Effect.Effect<string> {
 }
 
 it.layer(CursorTextGenerationTestLayer)("CursorTextGeneration", (it) => {
+  it.effect("generates suggested focus through the existing Cursor runner", () =>
+    withFakeAcpAgent(
+      { T3_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({ suggestions: [] }) },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          const result = yield* textGeneration.generateFocus!({
+            cwd: process.cwd(),
+            snapshot: { issues: [], nextPageToken: null },
+            modelSelection: createModelSelection(ProviderInstanceId.make("cursor"), "gpt-5.4"),
+          });
+          expect(result).toEqual({ suggestions: [] });
+        }),
+    ),
+  );
   it.effect("uses ACP model config options instead of raw CLI model ids", () => {
     const requestLogDir = NodeFS.mkdtempSync(
       NodePath.join(NodeOS.tmpdir(), "t3code-cursor-text-log-"),

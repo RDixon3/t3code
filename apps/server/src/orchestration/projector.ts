@@ -332,6 +332,7 @@ export function projectEvent(
             projectId: payload.projectId,
             title: payload.title,
             modelSelection: payload.modelSelection,
+            cocoAgent: payload.cocoAgent ?? null,
             runtimeMode: payload.runtimeMode,
             interactionMode: payload.interactionMode,
             branch: payload.branch,

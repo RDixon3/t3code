@@ -128,3 +128,7 @@ export const JIRA_PROJECTS_CHANNEL = "desktop:jira-projects";
 export const JIRA_ISSUES_CHANNEL = "desktop:jira-issues";
 export const JIRA_TRANSITIONS_CHANNEL = "desktop:jira-transitions";
 export const JIRA_TRANSITION_CHANNEL = "desktop:jira-transition";
+
+export const JIRA_AGENT_TOOLS_CHANNEL = "desktop:jira-agent-tools";
+export const JIRA_AGENT_CALL_CHANNEL = "desktop:jira-agent-call";
+export const JIRA_CHANGED_CHANNEL = "desktop:jira-changed";

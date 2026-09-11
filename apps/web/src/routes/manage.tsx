@@ -1,6 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ManageLanding } from "../components/workspace/ManageLanding";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { useUiStateStore } from "../uiStateStore";
 
 export const Route = createFileRoute("/manage")({
-  component: ManageLanding,
+  beforeLoad: () => {
+    useUiStateStore.getState().setManageLayout(true);
+    throw redirect({ to: "/", replace: true });
+  },
 });

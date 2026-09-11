@@ -1,3 +1,4 @@
+import { BrowserWindow } from "electron";
 import {
   JiraIssuesRequestSchema,
   JiraIssuePageSchema,
@@ -101,6 +102,41 @@ export const installJiraIpc = Effect.fn("desktop.ipc.installJira")(function* () 
   };
   yield* ipc.handle(
     DesktopIpc.makeIpcMethod({
+      channel: Channels.JIRA_AGENT_TOOLS_CHANNEL,
+      payload: Schema.Void,
+      result: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
+      handler: () =>
+        Effect.tryPromise({
+          try: () => withDiagnostics(() => connection.listAgentTools()),
+          catch: () =>
+            new JiraConnectionError({
+              message: "Could not discover Jira agent tools. Test the connection in Settings.",
+            }),
+        }),
+    }),
+  );
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.JIRA_AGENT_CALL_CHANNEL,
+      payload: Schema.Struct({
+        name: Schema.String,
+        expiresAt: Schema.Finite,
+        arguments: Schema.Record(Schema.String, Schema.Unknown),
+      }),
+      result: Schema.Unknown,
+      handler: (input) =>
+        Effect.tryPromise({
+          try: () => withDiagnostics(() => connection.callAgentTool(input)),
+          catch: () =>
+            new JiraConnectionError({
+              message:
+                "Jira tool request failed. A dispatched write may have completed; check Jira before retrying. See Jira diagnostics in Settings.",
+            }),
+        }),
+    }),
+  );
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
       channel: Channels.JIRA_SITES_CHANNEL,
       payload: Schema.Void,
       result: Schema.Array(JiraSiteSchema),
@@ -192,6 +228,10 @@ export const installJiraIpc = Effect.fn("desktop.ipc.installJira")(function* () 
                 action === "status"
                   ? await connection.status()
                   : await withDiagnostics(() => connection[action]());
+              if (action !== "status") {
+                for (const window of BrowserWindow.getAllWindows())
+                  window.webContents.send(Channels.JIRA_CHANGED_CHANNEL);
+              }
               const diagnostics =
                 connection.diagnostics() ||
                 (await Effect.runPromise(fs.readFileString(diagnosticsPath)).catch(() => ""));

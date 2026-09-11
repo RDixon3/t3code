@@ -1,3 +1,5 @@
+export * from "./coco.ts";
+
 export * from "./baseSchemas.ts";
 export * from "./assistantCitations.ts";
 export * from "./background.ts";
@@ -39,3 +41,5 @@ export * from "./previewAutomation.ts";
 export * from "./resourceTelemetry.ts";
 export * from "./usage.ts";
 export * from "./rpc.ts";
+
+export * from "./jiraAgent.ts";

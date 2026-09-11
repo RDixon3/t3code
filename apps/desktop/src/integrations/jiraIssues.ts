@@ -38,9 +38,42 @@ export function jiraProjectQuery(projectKey: string) {
   return `project = "${projectKey}" ORDER BY updated DESC, key ASC`;
 }
 
-export function parseJiraIssues(value: unknown, previousToken?: string) {
+export function jiraStoryPointFields(value: unknown): string[] {
+  if (!value || typeof value !== "object" || !("names" in value)) return [];
+  const names = value.names;
+  if (!names || typeof names !== "object") return [];
+  return Object.entries(names)
+    .filter(
+      ([id, name]) =>
+        /^customfield_\d+$/.test(id) &&
+        typeof name === "string" &&
+        ["story points", "story point estimate"].includes(name.trim().toLowerCase()),
+    )
+    .map(([id]) => id);
+}
+
+function storyPoints(value: unknown, fieldIds: readonly string[]): number | null {
+  if (!value || typeof value !== "object" || !("fields" in value)) return null;
+  const fields = value.fields;
+  if (!fields || typeof fields !== "object") return null;
+  const values = Object.entries(fields)
+    .filter(([id]) => fieldIds.includes(id))
+    .map(([, points]) => points)
+    .filter(
+      (points): points is number =>
+        typeof points === "number" && Number.isFinite(points) && points >= 0,
+    );
+  return new Set(values).size === 1 ? values[0]! : null;
+}
+
+export function parseJiraIssues(
+  value: unknown,
+  previousToken?: string,
+  pointFields: readonly string[] = [],
+) {
   try {
     const page = decodeIssues(value);
+    const rawIssues = (value as { issues: unknown[] }).issues;
     const nextPageToken = page.isLast === true ? null : page.nextPageToken || null;
     if (nextPageToken && (nextPageToken === previousToken || page.issues.length === 0))
       throw new Error();
@@ -54,7 +87,7 @@ export function parseJiraIssues(value: unknown, previousToken?: string) {
     )
       throw new Error();
     return {
-      issues: page.issues.map(({ id, key, fields }) => ({
+      issues: page.issues.map(({ id, key, fields }, index) => ({
         id,
         key,
         summary: fields.summary,
@@ -63,6 +96,7 @@ export function parseJiraIssues(value: unknown, previousToken?: string) {
         category: fields.status.statusCategory.key,
         assignee: fields.assignee?.displayName ?? null,
         priority: fields.priority?.name ?? null,
+        storyPoints: storyPoints(rawIssues[index], pointFields),
       })),
       nextPageToken,
     };

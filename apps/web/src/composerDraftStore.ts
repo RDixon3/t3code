@@ -314,6 +314,7 @@ type LegacyPersistedComposerDraftStoreState = PersistedComposerDraftStoreState &
   LegacyV2StoreFields;
 
 const PersistedDraftThreadState = Schema.Struct({
+  cocoAgentId: Schema.optionalKey(Schema.NullOr(Schema.String)),
   threadId: ThreadId,
   environmentId: Schema.String,
   projectId: ProjectId,
@@ -428,6 +429,7 @@ export function composerDraftHasUserContent(
  * environment/worktree configuration before the first send.
  */
 export interface DraftSessionState {
+  cocoAgentId?: string | null;
   threadId: ThreadId;
   environmentId: EnvironmentId;
   projectId: ProjectId;
@@ -507,6 +509,7 @@ interface ComposerDraftStoreState {
       worktreePath?: string | null;
       createdAt?: string;
       envMode?: DraftThreadEnvMode;
+      cocoAgentId?: string | null;
       startFromOrigin?: boolean;
       runtimeMode?: RuntimeMode;
       interactionMode?: ProviderInteractionMode;
@@ -524,6 +527,7 @@ interface ComposerDraftStoreState {
       worktreePath?: string | null;
       createdAt?: string;
       envMode?: DraftThreadEnvMode;
+      cocoAgentId?: string | null;
       startFromOrigin?: boolean;
       runtimeMode?: RuntimeMode;
       interactionMode?: ProviderInteractionMode;
@@ -540,6 +544,7 @@ interface ComposerDraftStoreState {
       projectRef?: ScopedProjectRef;
       createdAt?: string;
       envMode?: DraftThreadEnvMode;
+      cocoAgentId?: string | null;
       startFromOrigin?: boolean;
       runtimeMode?: RuntimeMode;
       interactionMode?: ProviderInteractionMode;
@@ -1545,6 +1550,7 @@ function createDraftThreadState(
     worktreePath?: string | null;
     createdAt?: string;
     envMode?: DraftThreadEnvMode;
+    cocoAgentId?: string | null;
     startFromOrigin?: boolean;
     runtimeMode?: RuntimeMode;
     interactionMode?: ProviderInteractionMode;
@@ -1602,6 +1608,11 @@ function createDraftThreadState(
     envMode:
       options?.envMode ?? (nextWorktreePath ? "worktree" : (existingThread?.envMode ?? "local")),
     startFromOrigin: nextStartFromOrigin,
+    ...(options?.cocoAgentId !== undefined
+      ? { cocoAgentId: options.cocoAgentId }
+      : existingThread?.cocoAgentId !== undefined
+        ? { cocoAgentId: existingThread.cocoAgentId }
+        : {}),
     promotedTo: null,
   };
 }
@@ -1635,6 +1646,7 @@ function draftThreadsEqual(left: DraftThreadState | undefined, right: DraftThrea
     left.branch === right.branch &&
     left.worktreePath === right.worktreePath &&
     left.envMode === right.envMode &&
+    left.cocoAgentId === right.cocoAgentId &&
     left.startFromOrigin === right.startFromOrigin &&
     scopedThreadRefsEqual(left.promotedTo, right.promotedTo)
   );
@@ -1784,6 +1796,10 @@ function normalizePersistedDraftThreads(
         worktreePath: normalizedWorktreePath,
         envMode: normalizeDraftThreadEnvMode(candidateDraftThread.envMode, normalizedWorktreePath),
         startFromOrigin,
+        ...(typeof candidateDraftThread.cocoAgentId === "string" ||
+        candidateDraftThread.cocoAgentId === null
+          ? { cocoAgentId: candidateDraftThread.cocoAgentId }
+          : {}),
         ...(candidateDraftThread.environmentSelection === "manual" ||
         candidateDraftThread.environmentSelection === "auto"
           ? { environmentSelection: candidateDraftThread.environmentSelection }
@@ -2494,6 +2510,9 @@ function toHydratedDraftThreadState(
     worktreePath: persistedDraftThread.worktreePath,
     envMode: persistedDraftThread.envMode,
     startFromOrigin: persistedDraftThread.startFromOrigin,
+    ...(persistedDraftThread.cocoAgentId !== undefined
+      ? { cocoAgentId: persistedDraftThread.cocoAgentId }
+      : {}),
     ...(persistedDraftThread.environmentSelection
       ? { environmentSelection: persistedDraftThread.environmentSelection }
       : {}),
@@ -2785,6 +2804,11 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               envMode:
                 options.envMode ?? (nextWorktreePath ? "worktree" : (existing.envMode ?? "local")),
               startFromOrigin: nextStartFromOrigin,
+              ...(options.cocoAgentId !== undefined
+                ? { cocoAgentId: options.cocoAgentId }
+                : existing.cocoAgentId !== undefined
+                  ? { cocoAgentId: existing.cocoAgentId }
+                  : {}),
               promotedTo: existing.promotedTo ?? null,
             };
             const isUnchanged =
@@ -2799,6 +2823,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               nextDraftThread.branch === existing.branch &&
               nextDraftThread.worktreePath === existing.worktreePath &&
               nextDraftThread.envMode === existing.envMode &&
+              nextDraftThread.cocoAgentId === existing.cocoAgentId &&
               nextDraftThread.startFromOrigin === existing.startFromOrigin &&
               scopedThreadRefsEqual(nextDraftThread.promotedTo, existing.promotedTo);
             if (isUnchanged) {

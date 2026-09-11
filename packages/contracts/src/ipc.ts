@@ -1260,6 +1260,7 @@ export const JiraIssueSchema = Schema.Struct({
   category: Schema.Literals(["new", "indeterminate", "done"]),
   assignee: Schema.NullOr(Schema.String),
   priority: Schema.NullOr(Schema.String),
+  storyPoints: Schema.optionalKey(Schema.NullOr(Schema.Finite)),
 });
 export type JiraIssue = typeof JiraIssueSchema.Type;
 export const JiraIssuesRequestSchema = Schema.Struct({
@@ -1276,7 +1277,16 @@ export const JiraIssueTargetSchema = Schema.Struct({
   cloudId: Schema.String,
   issueKey: Schema.String,
 });
-export const JiraTransitionSchema = Schema.Struct({ id: Schema.String, name: Schema.String });
+export const JiraTransitionSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  to: Schema.optionalKey(
+    Schema.Struct({
+      name: Schema.optionalKey(Schema.String),
+      statusCategory: Schema.optionalKey(Schema.Struct({ key: Schema.String })),
+    }),
+  ),
+});
 export type JiraTransition = typeof JiraTransitionSchema.Type;
 export const JiraTransitionRequestSchema = Schema.Struct({
   ...JiraIssueTargetSchema.fields,
@@ -1313,6 +1323,13 @@ export interface DesktopBridge {
   connectJira?: () => Promise<JiraConnectionStatus>;
   testJiraConnection?: () => Promise<JiraConnectionStatus>;
   disconnectJira?: () => Promise<JiraConnectionStatus>;
+  listJiraAgentTools?: () => Promise<ReadonlyArray<Record<string, unknown>>>;
+  callJiraAgentTool?: (input: {
+    name: string;
+    expiresAt: number;
+    arguments: Record<string, unknown>;
+  }) => Promise<unknown>;
+  onJiraConnectionChanged?: (listener: () => void) => () => void;
   listJiraSites?: () => Promise<ReadonlyArray<JiraSite>>;
   listJiraProjects?: (input: typeof JiraProjectsRequestSchema.Type) => Promise<JiraProjectPage>;
   listJiraIssues?: (input: typeof JiraIssuesRequestSchema.Type) => Promise<JiraIssuePage>;

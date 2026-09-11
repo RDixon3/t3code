@@ -1501,6 +1501,17 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe("promote me");
   });
 
+  it("retains the persona choice across draft context changes and explicit clearing", () => {
+    const store = useComposerDraftStore.getState();
+    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
+    store.setDraftThreadContext(draftId, { cocoAgentId: "manage" });
+    store.setDraftThreadContext(draftId, { branch: "feature/next" });
+    expect(useComposerDraftStore.getState().getDraftThread(draftId)?.cocoAgentId).toBe("manage");
+    store.setDraftThreadContext(draftId, { cocoAgentId: null });
+    store.setDraftThreadContext(draftId, { branch: "main" });
+    expect(useComposerDraftStore.getState().getDraftThread(draftId)?.cocoAgentId).toBeNull();
+  });
+
   it("updates branch context on an existing draft thread", () => {
     const store = useComposerDraftStore.getState();
     store.setProjectDraftThreadId(projectRef, draftId, {

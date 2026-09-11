@@ -944,6 +944,7 @@ export const CoCoProjectContext = Schema.Struct({
 export type CoCoProjectContext = typeof CoCoProjectContext.Type;
 
 export const ServerSettings = Schema.Struct({
+  cocoSkillsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   cocoProjectContexts: Schema.Record(ProjectId, CoCoProjectContext).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -1257,6 +1258,7 @@ export const ServerSettingsPatch = Schema.Struct({
   projectAutoPullOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
   ),
+  cocoSkillsEnabled: Schema.optionalKey(Schema.Boolean),
   cocoProjectContexts: Schema.optionalKey(Schema.Record(ProjectId, CoCoProjectContext)),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),

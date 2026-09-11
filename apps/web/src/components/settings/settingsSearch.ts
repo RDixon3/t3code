@@ -7,6 +7,7 @@ export type SettingsPath =
   | "/settings/appearance"
   | "/settings/keybindings"
   | "/settings/snap-shot"
+  | "/settings/agents"
   | "/settings/providers"
   | "/settings/integrations"
   | "/settings/source-control"
@@ -55,6 +56,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/keybindings": "Keybindings",
   "/settings/snap-shot": "SnapShots",
   "/settings/providers": "Providers",
+  "/settings/agents": "Agents & Skills",
   "/settings/integrations": "Integrations",
   "/settings/source-control": "Source Control",
   "/settings/connections": "Connections",
@@ -67,6 +69,12 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
  * that may not be mounted point at their nearest stable section instead.
  */
 export const SETTINGS_SEARCH_ITEMS = [
+  {
+    id: "agents",
+    title: "Agents & Skills",
+    to: "/settings/agents",
+    searchTerms: ["coco personas native skills installation updates"],
+  },
   {
     id: "project-defaults",
     title: "Project defaults and overrides",
@@ -289,7 +297,9 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "text-generation-model",
     title: "Text generation model",
     to: "/settings/general",
-    searchTerms: ["generated thread titles source control content default provider"],
+    searchTerms: [
+      "generated thread titles source control content default provider suggested focus manage summary",
+    ],
   },
   {
     id: "diagnostics",

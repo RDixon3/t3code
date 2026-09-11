@@ -21,6 +21,9 @@ type WsRpcMethod = RpcGroup.Rpcs<typeof WsRpcGroup>["_tag"];
  * runtime failure.
  */
 export const RPC_REQUIRED_SCOPES = {
+  [WS_METHODS.cocoGenerateFocus]: AuthOrchestrationOperateScope,
+  [WS_METHODS.cocoGetLibrary]: AuthOrchestrationReadScope,
+  [WS_METHODS.cocoSkillsAction]: AuthOrchestrationOperateScope,
   [ORCHESTRATION_WS_METHODS.dispatchCommand]: AuthOrchestrationOperateScope,
   [ORCHESTRATION_WS_METHODS.getWorkflowScript]: AuthOrchestrationReadScope,
   [ORCHESTRATION_WS_METHODS.getTurnDiff]: AuthOrchestrationReadScope,
@@ -137,6 +140,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.previewClose]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewList]: AuthOrchestrationReadScope,
   [WS_METHODS.previewReportStatus]: AuthOrchestrationOperateScope,
+  [WS_METHODS.jiraAgentConnect]: AuthOrchestrationOperateScope,
+  [WS_METHODS.jiraAgentRespond]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewAutomationConnect]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewAutomationRespond]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewAutomationFocusHost]: AuthOrchestrationOperateScope,

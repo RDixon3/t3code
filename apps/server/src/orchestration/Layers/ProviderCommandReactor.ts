@@ -1,3 +1,4 @@
+import { agentInstructions } from "../../coco/library.ts";
 import { withCoCoProjectContext } from "../cocoProjectContext.ts";
 import {
   type ChatAttachment,
@@ -723,18 +724,26 @@ const make = Effect.gen(function* () {
       readonly resumeCursor?: unknown;
       readonly provider?: ProviderDriverKind;
     }) =>
-      providerService
-        .startSession(threadId, {
-          threadId,
-          ...(preferredProvider ? { provider: preferredProvider } : {}),
-          providerInstanceId: desiredInstanceId,
-          ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
-          ...(thread.title ? { title: thread.title } : {}),
-          modelSelection: desiredModelSelection,
-          ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
-          runtimeMode: desiredRuntimeMode,
-        })
-        .pipe(Effect.tap(() => refreshWorkspaceSnapshot));
+      Effect.gen(function* () {
+        const persona = thread.cocoAgent
+          ? agentInstructions(
+              Option.getOrUndefined(yield* projectionSnapshotQuery.getThreadCoCoAgent(threadId)),
+            )
+          : undefined;
+        return yield* providerService
+          .startSession(threadId, {
+            threadId,
+            ...(preferredProvider ? { provider: preferredProvider } : {}),
+            providerInstanceId: desiredInstanceId,
+            ...(persona ? { agentInstructions: persona } : {}),
+            ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
+            ...(thread.title ? { title: thread.title } : {}),
+            modelSelection: desiredModelSelection,
+            ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
+            runtimeMode: desiredRuntimeMode,
+          })
+          .pipe(Effect.tap(() => refreshWorkspaceSnapshot));
+      });
 
     const bindSessionToThread = (session: ProviderSession) =>
       Effect.gen(function* () {

@@ -32,6 +32,12 @@ function makeUiState(overrides: Partial<UiState> = {}): UiState {
 }
 
 describe("uiStateStore pure functions", () => {
+  it("restores Manage layout only when explicitly enabled and defaults older settings to Build", () => {
+    expect(parsePersistedState({ manageLayout: true }).manageLayout).toBe(true);
+    expect(parsePersistedState({}).manageLayout).toBeUndefined();
+    expect(parsePersistedState({ manageLayout: false }).manageLayout).toBeUndefined();
+  });
+
   it("stores server timestamps without moving visit state backwards", () => {
     const threadId = ThreadId.make("thread-1");
     const initialState = makeUiState();

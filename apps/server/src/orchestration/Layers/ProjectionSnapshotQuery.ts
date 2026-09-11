@@ -1,4 +1,5 @@
 import {
+  CoCoAgent,
   AgentSessionImportSource,
   ApprovalRequestId,
   ChatAttachment,
@@ -115,6 +116,7 @@ const ProjectionThreadProposedPlanDbRowSchema = ProjectionThreadProposedPlan;
 const ProjectionThreadDbRowSchema = ProjectionThread.mapFields(
   Struct.assign({
     modelSelection: Schema.fromJsonString(ModelSelection),
+    cocoAgent: Schema.NullOr(Schema.fromJsonString(CoCoAgent)),
     linkedPullRequest: Schema.NullOr(Schema.fromJsonString(ThreadLinkedPullRequest)),
     branchPullRequest: Schema.NullOr(Schema.fromJsonString(ThreadLinkedPullRequest)),
   }),
@@ -496,6 +498,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           model_selection_json AS "modelSelection",
+          coco_agent_json AS "cocoAgent",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
           branch,
@@ -536,6 +539,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           model_selection_json AS "modelSelection",
+          coco_agent_json AS "cocoAgent",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
           branch,
@@ -578,6 +582,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           model_selection_json AS "modelSelection",
+          coco_agent_json AS "cocoAgent",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
           branch,
@@ -1069,6 +1074,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           model_selection_json AS "modelSelection",
+          coco_agent_json AS "cocoAgent",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
           branch,
@@ -1101,6 +1107,17 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
         LIMIT 1
       `,
   });
+
+  const getThreadCoCoAgent = (threadId: ThreadId) =>
+    getActiveThreadRowById({ threadId }).pipe(
+      Effect.map(Option.flatMap((row) => Option.fromNullishOr(row.cocoAgent))),
+      Effect.mapError(
+        toPersistenceSqlOrDecodeError(
+          "ProjectionSnapshotQuery.getThreadCoCoAgent:query",
+          "ProjectionSnapshotQuery.getThreadCoCoAgent:decodeRow",
+        ),
+      ),
+    );
 
   const getThreadRuntimeContextRow = SqlSchema.findOneOption({
     Request: ThreadIdLookupInput,
@@ -2067,6 +2084,7 @@ pending_approval_requests AS (
                 projectId: row.projectId,
                 title: row.title,
                 modelSelection: row.modelSelection,
+                cocoAgent: row.cocoAgent,
                 runtimeMode: row.runtimeMode,
                 interactionMode: row.interactionMode,
                 branch: row.branch,
@@ -2282,6 +2300,7 @@ pending_approval_requests AS (
                   projectId: row.projectId,
                   title: row.title,
                   modelSelection: row.modelSelection,
+                  cocoAgent: row.cocoAgent,
                   runtimeMode: row.runtimeMode,
                   interactionMode: row.interactionMode,
                   branch: row.branch,
@@ -2424,6 +2443,9 @@ pending_approval_requests AS (
                       projectId: row.projectId,
                       title: row.title,
                       modelSelection: row.modelSelection,
+                      cocoAgent: row.cocoAgent
+                        ? { id: row.cocoAgent.id, name: row.cocoAgent.name }
+                        : null,
                       runtimeMode: row.runtimeMode,
                       interactionMode: row.interactionMode,
                       branch: row.branch,
@@ -2574,6 +2596,9 @@ pending_approval_requests AS (
                 projectId: row.projectId,
                 title: row.title,
                 modelSelection: row.modelSelection,
+                cocoAgent: row.cocoAgent
+                  ? { id: row.cocoAgent.id, name: row.cocoAgent.name }
+                  : null,
                 runtimeMode: row.runtimeMode,
                 interactionMode: row.interactionMode,
                 branch: row.branch,
@@ -2897,6 +2922,9 @@ pending_approval_requests AS (
         projectId: threadRow.value.projectId,
         title: threadRow.value.title,
         modelSelection: threadRow.value.modelSelection,
+        cocoAgent: threadRow.value.cocoAgent
+          ? { id: threadRow.value.cocoAgent.id, name: threadRow.value.cocoAgent.name }
+          : null,
         runtimeMode: threadRow.value.runtimeMode,
         interactionMode: threadRow.value.interactionMode,
         branch: threadRow.value.branch,
@@ -3180,6 +3208,7 @@ pending_approval_requests AS (
         projectId: threadRow.value.projectId,
         title: threadRow.value.title,
         modelSelection: threadRow.value.modelSelection,
+        cocoAgent: threadRow.value.cocoAgent,
         runtimeMode: threadRow.value.runtimeMode,
         interactionMode: threadRow.value.interactionMode,
         branch: threadRow.value.branch,
@@ -3413,6 +3442,7 @@ pending_approval_requests AS (
     getThreadCheckpointContext,
     getFullThreadDiffContext,
     getThreadShellById,
+    getThreadCoCoAgent,
     getThreadRuntimeContext,
     getTurnStartMessage,
     getThreadDetailById,

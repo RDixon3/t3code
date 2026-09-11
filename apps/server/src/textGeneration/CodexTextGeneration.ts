@@ -1,3 +1,4 @@
+import { buildFocusPrompt } from "../coco/focus.ts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -101,7 +102,8 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
       | "generateCommitMessage"
       | "generatePrContent"
       | "generateBranchName"
-      | "generateThreadTitle",
+      | "generateThreadTitle"
+      | "generateFocus",
     value: unknown,
   ): Effect.Effect<string, TextGenerationError> =>
     encodeJsonString(value).pipe(
@@ -120,7 +122,8 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
       | "generateCommitMessage"
       | "generatePrContent"
       | "generateBranchName"
-      | "generateThreadTitle",
+      | "generateThreadTitle"
+      | "generateFocus",
     attachments: TextGeneration.BranchNameGenerationInput["attachments"],
   ): Effect.fn.Return<MaterializedImageAttachments, TextGenerationError> {
     if (!attachments || attachments.length === 0) {
@@ -162,7 +165,8 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
       | "generateCommitMessage"
       | "generatePrContent"
       | "generateBranchName"
-      | "generateThreadTitle";
+      | "generateThreadTitle"
+      | "generateFocus";
     cwd: string;
     prompt: string;
     outputSchemaJson: S;
@@ -405,7 +409,18 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
       } satisfies TextGeneration.ThreadTitleGenerationResult;
     });
 
+  const generateFocus = (input: TextGeneration.FocusGenerationInput) => {
+    const { prompt, outputSchema } = buildFocusPrompt(input.snapshot);
+    return runCodexJson({
+      operation: "generateFocus",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      prompt,
+      outputSchemaJson: outputSchema,
+    });
+  };
   return {
+    generateFocus,
     generateCommitMessage,
     generatePrContent,
     generateBranchName,

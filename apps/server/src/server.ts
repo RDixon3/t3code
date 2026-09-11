@@ -1,3 +1,5 @@
+import * as CoCoService from "./coco/service.ts";
+import * as JiraAgentBroker from "./mcp/JiraAgentBroker.ts";
 import { EnvironmentHttpApi, ProviderDriverKind } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Duration from "effect/Duration";
@@ -558,6 +560,8 @@ export const makeRoutesLayer = Layer.mergeAll(
   // and mutations observed on WebSocket invalidate patches subsequently read over HTTP.
   Layer.provide(PullRequestServiceLive),
   Layer.provide(PreviewAutomationBroker.layer),
+  Layer.provide(JiraAgentBroker.layer),
+  Layer.provide(CoCoService.layer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(DesktopAppUpdateLayerLive))),
   Layer.provide(commandReadinessLayer),
   Layer.provide(browserApiCorsLayer),

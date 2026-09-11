@@ -132,6 +132,7 @@ interface PendingUserInput {
 interface CursorSessionContext {
   readonly threadId: ThreadId;
   session: ProviderSession;
+  agentInstructions: string | undefined;
   readonly scope: Scope.Closeable;
   readonly acp: AcpSessionRuntime.AcpSessionRuntime["Service"];
   notificationFiber: Fiber.Fiber<void, never> | undefined;
@@ -778,6 +779,7 @@ export function makeCursorAdapter(
           };
 
           ctx = {
+            agentInstructions: input.agentInstructions,
             threadId: input.threadId,
             session,
             scope: sessionScope,
@@ -1054,6 +1056,9 @@ export function makeCursorAdapter(
           const result = yield* ctx.acp
             .prompt({
               prompt: [
+                ...(ctx.agentInstructions && !input.input?.trimStart().startsWith("/")
+                  ? [{ type: "text" as const, text: ctx.agentInstructions }]
+                  : []),
                 ...promptParts,
                 {
                   type: "text",

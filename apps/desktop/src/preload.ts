@@ -69,6 +69,13 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   disconnectServiceNow: () => ipcRenderer.invoke(IpcChannels.SERVICENOW_DISCONNECT_CHANNEL),
   connectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_CONNECT_CHANNEL),
   testJiraConnection: () => ipcRenderer.invoke(IpcChannels.JIRA_TEST_CHANNEL),
+  listJiraAgentTools: () => ipcRenderer.invoke(IpcChannels.JIRA_AGENT_TOOLS_CHANNEL),
+  callJiraAgentTool: (input) => ipcRenderer.invoke(IpcChannels.JIRA_AGENT_CALL_CHANNEL, input),
+  onJiraConnectionChanged: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(IpcChannels.JIRA_CHANGED_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.JIRA_CHANGED_CHANNEL, handler);
+  },
   listJiraSites: () => ipcRenderer.invoke(IpcChannels.JIRA_SITES_CHANNEL),
   listJiraProjects: (input) => ipcRenderer.invoke(IpcChannels.JIRA_PROJECTS_CHANNEL, input),
   listJiraIssues: (input) => ipcRenderer.invoke(IpcChannels.JIRA_ISSUES_CHANNEL, input),

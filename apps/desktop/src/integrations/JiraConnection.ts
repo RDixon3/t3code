@@ -1,3 +1,5 @@
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
+import { isJiraAgentToolName } from "@t3tools/contracts";
 // @effect-diagnostics nodeBuiltinImport:off globalFetch:off globalDate:off -- MCP SDK adapter owns a Node loopback callback and uses the SDK's Fetch/Promise interfaces.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
@@ -12,7 +14,12 @@ import {
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { JiraConnectionStatus } from "@t3tools/contracts";
 import * as NodeCrypto from "node:crypto";
-import { jiraProjectQuery, parseJiraIssues, parseJiraTransitions } from "./jiraIssues.ts";
+import {
+  jiraStoryPointFields,
+  jiraProjectQuery,
+  parseJiraIssues,
+  parseJiraTransitions,
+} from "./jiraIssues.ts";
 import { listenForOAuth } from "./oauthCallback.ts";
 import { jiraToolData, parseJiraSites, parseJiraProjects } from "./jiraDiscovery.ts";
 import { makeJiraDiagnostics } from "./jiraDiagnostics.ts";
@@ -185,7 +192,7 @@ export function makeJiraConnection(deps: {
     const abort = new AbortController();
     const signal = AbortSignal.any([
       abort.signal,
-      AbortSignal.timeout(interactive ? 300_000 : 45_000),
+      AbortSignal.timeout(interactive ? 300_000 : operation ? 75_000 : 45_000),
     ]);
     const done = (async () => {
       checkedAt = null;
@@ -301,14 +308,8 @@ export function makeJiraConnection(deps: {
     pending = { abort, done, discovery: Boolean(operation) };
     return done;
   };
-  const discover = async <T>(
-    name: string,
-    args: Record<string, unknown>,
-    parse: (value: unknown) => T,
-    allowEmpty = false,
-  ) => {
-    // Board loading and the project picker share one credential store. Serialize
-    // their requests so refresh-token rotation cannot race; disconnect cancels waiters.
+  const withClient = async <T>(operation: (client: Client, signal: AbortSignal) => Promise<T>) => {
+    // All Jira consumers share refresh tokens. Serialize operations and cancel queued work on disconnect.
     const generation = connectionGeneration;
     let current = pending;
     while (current) {
@@ -319,24 +320,111 @@ export function makeJiraConnection(deps: {
     }
     let data!: T;
     await run(false, async (provider, signal) => {
-      const client = new Client({ name: "t3-code-jira", version: "1.0.0" });
-      try {
-        stage = "initialize";
-        await client.connect(transport(provider, signal) as Transport, { signal, timeout: 30_000 });
-        stage = `tools/call ${name}`;
-        const result = await client.callTool({ name, arguments: args }, undefined, {
-          signal,
-          timeout: 30_000,
-        });
-        diagnostics.add(stage, `isError=${Boolean(result.isError)}`);
-        data = parse(allowEmpty && !result.isError ? undefined : jiraToolData(result));
-      } finally {
-        await client.close();
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const client = new Client({ name: "t3-code-jira", version: "1.0.0" });
+        try {
+          stage = "initialize";
+          try {
+            await client.connect(transport(provider, signal) as Transport, {
+              signal,
+              timeout: 30_000,
+            });
+          } catch (error) {
+            if (
+              !(error instanceof McpError) ||
+              error.code !== ErrorCode.RequestTimeout ||
+              signal.aborted
+            )
+              throw error;
+            if (attempt === 0) {
+              diagnostics.add(
+                "initialize",
+                "Timed out before any tool call; retrying once with a fresh connection.",
+              );
+              continue;
+            }
+            throw new Error(
+              "Atlassian did not respond while opening the Jira connection after two attempts. Try refreshing later, or test the connection in Settings → Integrations → Jira. No Jira tool was called.",
+            );
+          }
+          data = await operation(client, signal);
+          return;
+        } finally {
+          await client.close();
+        }
       }
     });
     return data;
   };
+  const callTool = async (
+    client: Client,
+    signal: AbortSignal,
+    name: string,
+    args: Record<string, unknown>,
+  ) => {
+    stage = `tools/call ${name}`;
+    const result = await client.callTool({ name, arguments: args }, undefined, {
+      signal,
+      timeout: 30_000,
+    });
+    diagnostics.add(stage, `isError=${Boolean(result.isError)}`);
+    return result;
+  };
+  const discover = <T>(
+    name: string,
+    args: Record<string, unknown>,
+    parse: (value: unknown) => T,
+    allowEmpty = false,
+  ) =>
+    withClient(async (client, signal) => {
+      const result = await callTool(client, signal, name, args);
+      return parse(allowEmpty && !result.isError ? undefined : jiraToolData(result));
+    });
+  let agentToolNames = new Set<string>();
+  const pointFields = new Map<string, string[]>();
   return {
+    listAgentTools: () =>
+      withClient(async (client, signal) => {
+        const tools = [];
+        const cursors = new Set<string>();
+        let cursor: string | undefined;
+        do {
+          stage = "tools/list";
+          const page = await client.listTools(cursor ? { cursor } : {}, {
+            signal,
+            timeout: 30_000,
+          });
+          tools.push(...page.tools.filter((tool) => isJiraAgentToolName(tool.name)));
+          cursor = page.nextCursor;
+          if (cursor && (cursors.has(cursor) || cursors.size >= 49))
+            throw new Error("Jira tool discovery returned a repeated cursor or exceeded 50 pages.");
+          if (cursor) cursors.add(cursor);
+        } while (cursor);
+        agentToolNames = new Set(tools.map((tool) => tool.name));
+        diagnostics.add("tools/list", `Jira agent tools=${tools.length}`);
+        return tools;
+      }),
+    callAgentTool: (input: {
+      name: string;
+      expiresAt: number;
+      arguments: Record<string, unknown>;
+    }) => {
+      if (!agentToolNames.has(input.name))
+        return Promise.reject(
+          new Error("Jira tool is unavailable. Refresh the Jira connection in Settings."),
+        );
+      return withClient(async (client, signal) => {
+        if (Date.now() >= input.expiresAt)
+          throw new Error("Jira request expired before execution.");
+        try {
+          return await callTool(client, signal, input.name, input.arguments);
+        } catch {
+          throw new Error(
+            "Jira agent tool failed. A dispatched write may have completed; check Jira before retrying.",
+          );
+        }
+      });
+    },
     listSites: () => discover("getAccessibleAtlassianResources", {}, parseJiraSites),
     listProjects: async ({ cloudId, startAt }: { cloudId: string; startAt: number }) => {
       if (!cloudId.trim() || !Number.isSafeInteger(startAt) || startAt < 0)
@@ -345,18 +433,63 @@ export function makeJiraConnection(deps: {
         parseJiraProjects(value, startAt),
       );
     },
-    listIssues: (input: { cloudId: string; projectKey: string; nextPageToken?: string }) =>
-      discover(
+    listIssues: async (input: { cloudId: string; projectKey: string; nextPageToken?: string }) => {
+      const cacheKey = JSON.stringify([input.cloudId, input.projectKey]);
+      // Search does not support names expansion; fetch one issue to resolve custom field IDs.
+      if (!pointFields.has(cacheKey) || !input.nextPageToken) {
+        const issueKey = await discover(
+          "searchJiraIssuesUsingJql",
+          {
+            cloudId: input.cloudId,
+            jql: jiraProjectQuery(input.projectKey),
+            maxResults: 1,
+            fields: ["summary"],
+          },
+          (value) => {
+            if (
+              !value ||
+              typeof value !== "object" ||
+              !("issues" in value) ||
+              !Array.isArray(value.issues)
+            )
+              throw new Error("Jira returned an unsupported issue discovery response.");
+            const first: unknown = value.issues[0];
+            return first &&
+              typeof first === "object" &&
+              "key" in first &&
+              typeof first.key === "string"
+              ? first.key
+              : null;
+          },
+        );
+        const fields = issueKey
+          ? await discover(
+              "getJiraIssue",
+              {
+                cloudId: input.cloudId,
+                issueIdOrKey: issueKey,
+                fields: ["*all"],
+                expand: "names",
+                responseContentFormat: "adf",
+              },
+              jiraStoryPointFields,
+            )
+          : [];
+        pointFields.set(cacheKey, fields);
+      }
+      const fields = pointFields.get(cacheKey) ?? [];
+      return discover(
         "searchJiraIssuesUsingJql",
         {
           cloudId: input.cloudId,
           jql: jiraProjectQuery(input.projectKey),
           maxResults: 100,
-          fields: ["summary", "issuetype", "status", "assignee", "priority"],
+          fields: ["summary", "issuetype", "status", "assignee", "priority", ...fields],
           ...(input.nextPageToken ? { nextPageToken: input.nextPageToken } : {}),
         },
-        (value) => parseJiraIssues(value, input.nextPageToken),
-      ),
+        (value) => parseJiraIssues(value, input.nextPageToken, fields),
+      );
+    },
     getTransitions: (input: { cloudId: string; issueKey: string }) =>
       discover(
         "getTransitionsForJiraIssue",
@@ -380,6 +513,8 @@ export function makeJiraConnection(deps: {
     test: () => run(false),
     disconnect: async (): Promise<JiraConnectionStatus> => {
       connectionGeneration++;
+      agentToolNames.clear();
+      pointFields.clear();
       const current = pending;
       current?.abort.abort();
       await current?.done.catch(() => {});

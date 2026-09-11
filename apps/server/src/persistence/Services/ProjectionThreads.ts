@@ -7,6 +7,7 @@
  * @module ProjectionThreadRepository
  */
 import {
+  CoCoAgent,
   CommandId,
   IsoDateTime,
   ModelSelection,
@@ -26,6 +27,7 @@ import type * as Effect from "effect/Effect";
 import type { ProjectionRepositoryError } from "../Errors.ts";
 
 export const ProjectionThread = Schema.Struct({
+  cocoAgent: Schema.optional(Schema.NullOr(CoCoAgent)),
   threadId: ThreadId,
   projectId: ProjectId,
   title: Schema.String,

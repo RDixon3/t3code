@@ -16,9 +16,11 @@ import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "../ui/men
 export function ProjectJiraLink({
   environmentId,
   projectId,
+  appearance = "button",
 }: {
   environmentId: EnvironmentId;
   projectId: ProjectId;
+  appearance?: "button" | "subtitle";
 }) {
   const saved = useEnvironmentSettings(
     environmentId,
@@ -119,11 +121,30 @@ export function ProjectJiraLink({
         if (next && sites === null && !loading) void loadSites();
       }}
     >
-      <MenuTrigger render={<Button variant="outline" size="sm" title={saved?.siteUrl} />}>
-        {saved ? `Jira: ${saved.projectKey}` : "Link Jira project"}
+      <MenuTrigger
+        render={
+          <Button
+            variant={appearance === "subtitle" ? "ghost" : "outline"}
+            size="sm"
+            title={saved?.siteUrl}
+            className={
+              appearance === "subtitle"
+                ? "h-auto max-w-full justify-start px-0 py-1 font-normal text-muted-foreground hover:bg-transparent hover:text-foreground"
+                : undefined
+            }
+          />
+        }
+      >
+        <span className="truncate">
+          {saved
+            ? appearance === "subtitle"
+              ? `${saved.projectKey} · ${saved.siteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}`
+              : `Jira: ${saved.projectKey}`
+            : "Link Jira project"}
+        </span>
         <ChevronDownIcon className="size-3" />
       </MenuTrigger>
-      <MenuPopup align="end" className="w-72">
+      <MenuPopup align={appearance === "subtitle" ? "start" : "end"} className="w-72">
         <div className="px-2 py-1.5 text-xs text-muted-foreground">
           {site ? site.name : "Jira project"}
         </div>

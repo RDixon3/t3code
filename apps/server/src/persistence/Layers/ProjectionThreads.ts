@@ -14,11 +14,12 @@ import {
   ProjectionThreadRepository,
   type ProjectionThreadRepositoryShape,
 } from "../Services/ProjectionThreads.ts";
-import { ModelSelection, ThreadLinkedPullRequest } from "@t3tools/contracts";
+import { CoCoAgent, ModelSelection, ThreadLinkedPullRequest } from "@t3tools/contracts";
 
 const ProjectionThreadDbRow = ProjectionThread.mapFields(
   Struct.assign({
     modelSelection: Schema.fromJsonString(ModelSelection),
+    cocoAgent: Schema.NullOr(Schema.fromJsonString(CoCoAgent)),
     linkedPullRequest: Schema.NullOr(Schema.fromJsonString(ThreadLinkedPullRequest)),
     branchPullRequest: Schema.NullOr(Schema.fromJsonString(ThreadLinkedPullRequest)),
   }),
@@ -37,6 +38,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           project_id,
           title,
           model_selection_json,
+          coco_agent_json,
           runtime_mode,
           interaction_mode,
           branch,
@@ -68,6 +70,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           ${row.projectId},
           ${row.title},
           ${JSON.stringify(row.modelSelection)},
+          ${row.cocoAgent ? JSON.stringify(row.cocoAgent) : null},
           ${row.runtimeMode},
           ${row.interactionMode},
           ${row.branch},
@@ -99,6 +102,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           project_id = excluded.project_id,
           title = excluded.title,
           model_selection_json = excluded.model_selection_json,
+          coco_agent_json = excluded.coco_agent_json,
           runtime_mode = excluded.runtime_mode,
           interaction_mode = excluded.interaction_mode,
           branch = excluded.branch,
@@ -137,6 +141,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           model_selection_json AS "modelSelection",
+          coco_agent_json AS "cocoAgent",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
           branch,
@@ -177,6 +182,7 @@ const makeProjectionThreadRepository = Effect.gen(function* () {
           project_id AS "projectId",
           title,
           model_selection_json AS "modelSelection",
+          coco_agent_json AS "cocoAgent",
           runtime_mode AS "runtimeMode",
           interaction_mode AS "interactionMode",
           branch,

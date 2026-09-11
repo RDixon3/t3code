@@ -1,4 +1,6 @@
-import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
+import { ManageWorkspace } from "../components/workspace/ManageWorkspace";
+import { useUiStateStore } from "../uiStateStore";
+import { Outlet, createFileRoute, redirect, useParams, useLocation } from "@tanstack/react-router";
 import { useAtomValue } from "@effect/atom-react";
 import { useEffect, useMemo } from "react";
 
@@ -175,10 +177,20 @@ function ChatRouteGlobalShortcuts() {
 }
 
 function ChatRouteLayout() {
+  const manageLayout = useUiStateStore((state) => state.manageLayout);
+  const params = useParams({ strict: false });
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const showManage = manageLayout && (pathname === "/" || params.threadId || params.draftId);
   return (
     <>
       <ChatRouteGlobalShortcuts />
-      <Outlet />
+      {showManage ? (
+        <ManageWorkspace>
+          <Outlet />
+        </ManageWorkspace>
+      ) : (
+        <Outlet />
+      )}
     </>
   );
 }

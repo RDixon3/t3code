@@ -1,4 +1,5 @@
 import * as Crypto from "effect/Crypto";
+import { buildFocusPrompt } from "../coco/focus.ts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
@@ -54,7 +55,8 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
       | "generateCommitMessage"
       | "generatePrContent"
       | "generateBranchName"
-      | "generateThreadTitle";
+      | "generateThreadTitle"
+      | "generateFocus";
     cwd: string;
     prompt: string;
     outputSchemaJson: S;
@@ -259,7 +261,18 @@ export const makeCursorTextGeneration = Effect.fn("makeCursorTextGeneration")(fu
       } satisfies TextGeneration.ThreadTitleGenerationResult;
     });
 
+  const generateFocus = (input: TextGeneration.FocusGenerationInput) => {
+    const { prompt, outputSchema } = buildFocusPrompt(input.snapshot);
+    return runCursorJson({
+      operation: "generateFocus",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      prompt,
+      outputSchemaJson: outputSchema,
+    });
+  };
   return {
+    generateFocus,
     generateCommitMessage,
     generatePrContent,
     generateBranchName,

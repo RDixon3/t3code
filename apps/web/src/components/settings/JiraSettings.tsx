@@ -1,3 +1,5 @@
+import { useAtomValue } from "@effect/atom-react";
+import { jiraAgentStatus } from "../../state/jiraAgent";
 import type { JiraConnectionStatus } from "@t3tools/contracts";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
@@ -12,6 +14,7 @@ export function JiraSettings() {
 }
 
 function JiraConnectionSettings() {
+  const agentStatus = useAtomValue(jiraAgentStatus);
   const bridge = window.desktopBridge;
   const available = Boolean(
     bridge?.connectJira &&
@@ -96,6 +99,9 @@ function JiraConnectionSettings() {
                       : status?.connected
                         ? "Signed in · connection not yet verified"
                         : "Not connected"}
+          </p>
+          <p role="status" className="text-xs text-muted-foreground">
+            {agentStatus}
           </p>
           {error && (
             <p role="alert" className="text-sm text-destructive">

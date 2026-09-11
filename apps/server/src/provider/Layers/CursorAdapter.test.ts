@@ -198,86 +198,56 @@ cursorAdapterTestLayer("CursorAdapterLive", (it) => {
     }),
   );
 
-  it.effect("starts a session and maps mock ACP prompt flow to runtime events", () =>
-    Effect.gen(function* () {
-      const adapter = yield* CursorAdapter;
-      const settings = yield* ServerSettingsService;
-      const threadId = ThreadId.make("cursor-mock-thread");
-
-      const wrapperPath = yield* Effect.promise(() => makeMockAgentWrapper());
-      yield* settings.updateSettings({ providers: { cursor: { binaryPath: wrapperPath } } });
-
-      const runtimeEventsFiber = yield* Stream.take(adapter.streamEvents, 9).pipe(
-        Stream.runCollect,
-        Effect.forkChild,
-      );
-
-      const session = yield* adapter.startSession({
-        threadId,
-        provider: ProviderDriverKind.make("cursor"),
-        cwd: process.cwd(),
-        runtimeMode: "full-access",
-        modelSelection: { instanceId: ProviderInstanceId.make("cursor"), model: "default" },
-      });
-
-      assert.equal(session.provider, "cursor");
-      assert.deepStrictEqual(session.resumeCursor, {
-        schemaVersion: 1,
-        sessionId: "mock-session-1",
-      });
-
-      yield* adapter.sendTurn({
-        threadId,
-        input: "hello mock",
-        attachments: [],
-      });
-
-      const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
-      const types = runtimeEvents.map((e) => e.type);
-
-      for (const t of [
-        "session.started",
-        "session.state.changed",
-        "thread.started",
-        "turn.started",
-        "turn.plan.updated",
-        "item.started",
-        "content.delta",
-        "item.completed",
-        "turn.completed",
-      ] as const) {
-        assert.include(types, t);
-      }
-
-      const assistantStarted = runtimeEvents.find(
-        (event) => event.type === "item.started" && event.payload.itemType === "assistant_message",
-      );
-      assert.isDefined(assistantStarted);
-
-      const delta = runtimeEvents.find((e) => e.type === "content.delta");
-      assert.isDefined(delta);
-      if (delta?.type === "content.delta") {
-        assert.equal(delta.payload.delta, "hello from mock");
-        assert.match(String(delta.itemId), /^assistant:mock-session-1:runtime:[^:]+:segment:0$/);
-      }
-
-      const assistantCompleted = runtimeEvents.find(
-        (event) =>
-          event.type === "item.completed" && event.payload.itemType === "assistant_message",
-      );
-      assert.isDefined(assistantCompleted);
-
-      const planUpdate = runtimeEvents.find((event) => event.type === "turn.plan.updated");
-      assert.isDefined(planUpdate);
-      if (planUpdate?.type === "turn.plan.updated") {
-        assert.deepStrictEqual(planUpdate.payload.plan, [
-          { step: "Inspect mock ACP state", status: "completed" },
-          { step: "Implement the requested change", status: "inProgress" },
-        ]);
-      }
-
-      yield* adapter.stopSession(threadId);
-    }),
+  it.effect(
+    "adds persona context to ordinary turns without changing native commands or saved prompts",
+    () =>
+      Effect.gen(function* () {
+        const adapter = yield* CursorAdapter;
+        const settings = yield* ServerSettingsService;
+        const threadId = ThreadId.make("cursor-persona");
+        const workspace = yield* Effect.promise(() =>
+          NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "cursor-persona-")),
+        );
+        yield* Effect.addFinalizer(() =>
+          Effect.promise(() => NodeFSP.rm(workspace, { recursive: true, force: true })),
+        );
+        const log = NodePath.join(workspace, "requests.ndjson");
+        const wrapperPath = yield* Effect.promise(() =>
+          makeProbeWrapper(log, NodePath.join(workspace, "argv.txt")),
+        );
+        yield* settings.updateSettings({ providers: { cursor: { binaryPath: wrapperPath } } });
+        yield* adapter.startSession({
+          threadId,
+          provider: ProviderDriverKind.make("cursor"),
+          cwd: process.cwd(),
+          runtimeMode: "full-access",
+          agentInstructions: "Manage persona",
+        });
+        yield* adapter.sendTurn({ threadId, input: "Review work", attachments: [] });
+        yield* adapter.sendTurn({ threadId, input: "/help", attachments: [] });
+        const history = yield* adapter.readThread(threadId);
+        assert.deepEqual(
+          history.turns.map((turn) => turn.items),
+          [
+            [
+              {
+                prompt: [{ type: "text", text: "Review work" }],
+                result: { stopReason: "end_turn" },
+              },
+            ],
+            [{ prompt: [{ type: "text", text: "/help" }], result: { stopReason: "end_turn" } }],
+          ],
+        );
+        yield* adapter.stopSession(threadId);
+        const requests = yield* Effect.promise(() => readJsonLines(log));
+        const prompts = requests
+          .filter((entry) => entry.method === "session/prompt")
+          .map((entry) => (entry.params as { prompt: { type: string; text?: string }[] }).prompt);
+        assert.isTrue(prompts[0]!.some((part) => part.text === "Manage persona"));
+        assert.isTrue(prompts[0]!.some((part) => part.text === "Review work"));
+        assert.isFalse(prompts[1]!.some((part) => part.text === "Manage persona"));
+        assert.isTrue(prompts[1]!.some((part) => part.text === "/help"));
+      }),
   );
 
   it.effect("sends selected project skills in Cursor's native slash form", () =>

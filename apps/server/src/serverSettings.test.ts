@@ -275,6 +275,26 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     ).pipe(Effect.provide(makeServerSettingsLayer())),
   );
 
+  it.effect("persists CoCo skill opt-in and disabling", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const config = yield* ServerConfig.ServerConfig;
+        const fs = yield* FileSystem.FileSystem;
+        const settings = yield* ServerSettingsModule.ServerSettingsService;
+        assert.isFalse((yield* settings.getSettings).cocoSkillsEnabled);
+        for (const enabled of [true, false]) {
+          yield* settings.updateSettings({ cocoSkillsEnabled: enabled });
+          const persisted = yield* fs
+            .readFileString(config.settingsPath)
+            .pipe(
+              Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(ServerSettings))),
+            );
+          assert.equal(persisted.cocoSkillsEnabled, enabled);
+        }
+      }),
+    ).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+
   it.effect("persists CoCo project context and explicit clearing", () =>
     Effect.scoped(
       Effect.gen(function* () {

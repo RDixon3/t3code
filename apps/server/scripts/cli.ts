@@ -162,6 +162,7 @@ const buildCmd = Command.make(
         }),
       );
 
+      yield* fs.copy(path.join(repoRoot, "coco"), path.join(serverDir, "dist/coco"));
       const webDist = path.join(repoRoot, "apps/web/dist");
       const clientTarget = path.join(serverDir, "dist/client");
 

@@ -1,3 +1,4 @@
+import type { CoCoFocusResult, JiraIssuePage } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -10,6 +11,11 @@ import type { TextGenerationPolicy } from "./TextGenerationPolicy.ts";
 
 export type TextGenerationProvider = "codex" | "claudeAgent" | "cursor" | "grok" | "opencode";
 
+export interface FocusGenerationInput {
+  cwd: string;
+  modelSelection: ModelSelection;
+  snapshot: JiraIssuePage;
+}
 export interface CommitMessageGenerationInput {
   cwd: string;
   branch: string | null;
@@ -82,6 +88,9 @@ export class TextGeneration extends Context.Service<
     /**
      * Generate a commit message from staged change context.
      */
+    readonly generateFocus?: (
+      input: FocusGenerationInput,
+    ) => Effect.Effect<CoCoFocusResult, TextGenerationError>;
     readonly generateCommitMessage: (
       input: CommitMessageGenerationInput,
     ) => Effect.Effect<CommitMessageGenerationResult, TextGenerationError>;
@@ -108,6 +117,7 @@ export class TextGeneration extends Context.Service<
 >()("t3/textGeneration/TextGeneration") {}
 
 type TextGenerationOp =
+  | "generateFocus"
   | "generateCommitMessage"
   | "generatePrContent"
   | "generateBranchName"
@@ -135,6 +145,20 @@ export const makeTextGenerationFromRegistry = (
   registry: ProviderInstanceRegistry.ProviderInstanceRegistry["Service"],
 ): TextGeneration["Service"] =>
   TextGeneration.of({
+    generateFocus: (input) =>
+      resolveInstance(registry, "generateFocus", input.modelSelection.instanceId).pipe(
+        Effect.flatMap((service) =>
+          service.generateFocus
+            ? service.generateFocus(input)
+            : Effect.fail(
+                new TextGenerationError({
+                  operation: "generateFocus",
+                  detail:
+                    "Suggested focus supports Codex, Claude and Cursor. Choose one in Settings → General → Text generation model.",
+                }),
+              ),
+        ),
+      ),
     generateCommitMessage: (input) =>
       resolveInstance(registry, "generateCommitMessage", input.modelSelection.instanceId).pipe(
         Effect.flatMap((textGeneration) => textGeneration.generateCommitMessage(input)),

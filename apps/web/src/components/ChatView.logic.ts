@@ -361,6 +361,7 @@ export function buildLocalDraftThread(
 export function buildLoadingThreadFromShell(shell: ThreadShell): Thread {
   return {
     ...shell,
+    cocoAgent: null,
     messages: [],
     proposedPlans: [],
     activities: [],

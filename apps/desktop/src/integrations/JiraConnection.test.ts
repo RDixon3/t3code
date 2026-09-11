@@ -1,3 +1,5 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 // @effect-diagnostics globalFetch:off -- Exercises the real OAuth loopback callback; no external network or account access.
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
@@ -31,6 +33,138 @@ function fixture(initial?: string) {
 }
 
 describe("Jira connection", () => {
+  it("retries an initialization timeout once before dispatching any tools", async () => {
+    const connect = vi
+      .spyOn(Client.prototype, "connect")
+      .mockRejectedValueOnce(new McpError(ErrorCode.RequestTimeout, "Request timed out"))
+      .mockResolvedValue(undefined);
+    const close = vi.spyOn(Client.prototype, "close").mockResolvedValue(undefined);
+    const call = vi
+      .spyOn(Client.prototype, "callTool")
+      .mockResolvedValue({ content: [{ type: "text", text: "[]" }] });
+    try {
+      const connection = makeJiraConnection(fixture(saved).deps);
+      expect(await connection.listSites()).toEqual([]);
+      expect(connect).toHaveBeenCalledTimes(2);
+      expect(close).toHaveBeenCalledTimes(2);
+      expect(call).toHaveBeenCalledTimes(1);
+      expect(connection.diagnostics()).toContain("retrying once");
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+  it("stops after a second initialization timeout without calling tools", async () => {
+    const connect = vi
+      .spyOn(Client.prototype, "connect")
+      .mockRejectedValue(new McpError(ErrorCode.RequestTimeout, "Request timed out"));
+    vi.spyOn(Client.prototype, "close").mockResolvedValue(undefined);
+    const call = vi.spyOn(Client.prototype, "callTool");
+    try {
+      await expect(makeJiraConnection(fixture(saved).deps).listSites()).rejects.toThrow(
+        "after two attempts",
+      );
+      expect(connect).toHaveBeenCalledTimes(2);
+      expect(call).not.toHaveBeenCalled();
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+  it("does not replay a tool call that times out after initialization", async () => {
+    const connect = vi.spyOn(Client.prototype, "connect").mockResolvedValue(undefined);
+    vi.spyOn(Client.prototype, "close").mockResolvedValue(undefined);
+    const call = vi
+      .spyOn(Client.prototype, "callTool")
+      .mockRejectedValue(new McpError(ErrorCode.RequestTimeout, "Request timed out"));
+    try {
+      await expect(
+        makeJiraConnection(fixture(saved).deps).transitionIssue({
+          cloudId: "cloud",
+          issueKey: "KAN-1",
+          transitionId: "done",
+        }),
+      ).rejects.toThrow("Request timed out");
+      expect(connect).toHaveBeenCalledTimes(1);
+      expect(call).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.restoreAllMocks();
+    }
+  });
+  it("forwards discovered Jira tools and raw results without exposing credentials or unrelated tools", async () => {
+    const f = fixture(saved);
+    const calls: unknown[] = [];
+    const tool = {
+      name: "editJiraIssue",
+      description: "Edit an issue",
+      inputSchema: { type: "object", properties: { fields: { type: "object" } } },
+      annotations: { destructiveHint: true },
+    };
+    const raw = {
+      content: [{ type: "text", text: "private issue data" }],
+      structuredContent: { key: "TEAM-1" },
+      isError: true,
+    };
+    const mock = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      if (init?.method === "GET") return new Response(null, { status: 405 });
+      const message = JSON.parse(String(init?.body));
+      if (message.method === "notifications/initialized")
+        return new Response(null, { status: 202 });
+      let result: unknown;
+      if (message.method === "initialize")
+        result = {
+          protocolVersion: "2025-03-26",
+          capabilities: { tools: {} },
+          serverInfo: { name: "test", version: "1" },
+        };
+      else if (message.method === "tools/list")
+        result = message.params?.cursor
+          ? { tools: [tool] }
+          : {
+              tools: [{ name: "getConfluencePage", inputSchema: { type: "object" } }],
+              nextCursor: "next",
+            };
+      else if (message.method === "tools/call") {
+        calls.push(message.params);
+        result = raw;
+      } else throw new Error(`Unexpected method ${message.method}`);
+      return Response.json({ jsonrpc: "2.0", id: message.id, result });
+    });
+    try {
+      const connection = makeJiraConnection(f.deps);
+      expect(await connection.listAgentTools()).toEqual([tool]);
+      await expect(
+        connection.callAgentTool({
+          name: "getConfluencePage",
+          arguments: {},
+          expiresAt: Number.MAX_SAFE_INTEGER,
+        }),
+      ).rejects.toThrow("unavailable");
+      await expect(
+        connection.callAgentTool({ name: tool.name, arguments: {}, expiresAt: 0 }),
+      ).rejects.toThrow("expired");
+      expect(
+        await connection.callAgentTool({
+          name: tool.name,
+          arguments: { fields: { summary: "private input" } },
+          expiresAt: Number.MAX_SAFE_INTEGER,
+        }),
+      ).toEqual(raw);
+      expect(calls).toHaveLength(1);
+      expect(connection.diagnostics()).not.toContain("private");
+      expect(connection.diagnostics()).not.toContain("old-token");
+      expect(f.opened()).toBe(0);
+      await connection.disconnect();
+      await expect(
+        connection.callAgentTool({
+          name: tool.name,
+          arguments: {},
+          expiresAt: Number.MAX_SAFE_INTEGER,
+        }),
+      ).rejects.toThrow("unavailable");
+    } finally {
+      mock.mockRestore();
+    }
+  });
+
   it("discovers sites and paginated projects with saved credentials without opening sign-in", async () => {
     const f = fixture(saved);
     const calls: unknown[] = [];
@@ -171,7 +305,26 @@ describe("Jira connection", () => {
                 text: JSON.stringify(
                   message.params.name === "getTransitionsForJiraIssue"
                     ? { transitions: [{ id: "42", name: "Start" }] }
-                    : { issues: [], isLast: true },
+                    : message.params.name === "getJiraIssue"
+                      ? { names: { customfield_12345: "Story point estimate" } }
+                      : {
+                          issues:
+                            message.params.arguments.maxResults === 1
+                              ? [{ key: "TEAM-1" }]
+                              : [
+                                  {
+                                    id: "1",
+                                    key: "TEAM-1",
+                                    fields: {
+                                      summary: "Estimated task",
+                                      issuetype: { name: "Task" },
+                                      status: { name: "To Do", statusCategory: { key: "new" } },
+                                      customfield_12345: 5,
+                                    },
+                                  },
+                                ],
+                          isLast: true,
+                        },
                 ),
               },
             ],
@@ -187,11 +340,11 @@ describe("Jira connection", () => {
           projectKey: "TEAM",
           nextPageToken: "page2",
         }),
-      ).toEqual({ issues: [], nextPageToken: null });
+      ).toMatchObject({ issues: [{ key: "TEAM-1", storyPoints: 5 }], nextPageToken: null });
       expect(await connection.getTransitions({ cloudId: "cloud", issueKey: "TEAM-1" })).toEqual([
         { id: "42", name: "Start" },
       ]);
-      expect(calls).toHaveLength(2);
+      expect(calls).toHaveLength(4);
       await connection.transitionIssue({
         cloudId: "cloud",
         issueKey: "TEAM-1",
@@ -203,8 +356,27 @@ describe("Jira connection", () => {
           arguments: {
             cloudId: "cloud",
             jql: 'project = "TEAM" ORDER BY updated DESC, key ASC',
+            maxResults: 1,
+            fields: ["summary"],
+          },
+        },
+        {
+          name: "getJiraIssue",
+          arguments: {
+            cloudId: "cloud",
+            issueIdOrKey: "TEAM-1",
+            fields: ["*all"],
+            expand: "names",
+            responseContentFormat: "adf",
+          },
+        },
+        {
+          name: "searchJiraIssuesUsingJql",
+          arguments: {
+            cloudId: "cloud",
+            jql: 'project = "TEAM" ORDER BY updated DESC, key ASC',
             maxResults: 100,
-            fields: ["summary", "issuetype", "status", "assignee", "priority"],
+            fields: ["summary", "issuetype", "status", "assignee", "priority", "customfield_12345"],
             nextPageToken: "page2",
           },
         },
@@ -221,7 +393,7 @@ describe("Jira connection", () => {
       await expect(
         connection.transitionIssue({ cloudId: "cloud", issueKey: "TEAM-1", transitionId: "42" }),
       ).rejects.toThrow("tool error");
-      expect(calls).toHaveLength(4);
+      expect(calls).toHaveLength(6);
       expect(f.value()).toBe(saved);
       expect(f.opened()).toBe(0);
     } finally {

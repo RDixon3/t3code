@@ -1,3 +1,8 @@
+import { TextGenerationError, CoCoError } from "@t3tools/contracts";
+import { makeTextGenerationFromRegistry } from "./textGeneration/TextGeneration.ts";
+import { validateFocus } from "./coco/focus.ts";
+import { CoCoService } from "./coco/service.ts";
+import * as JiraAgentBroker from "./mcp/JiraAgentBroker.ts";
 import {
   sameUsageLimitCommandCoverage,
   withUsageLimitsCommands,
@@ -156,6 +161,9 @@ import * as PairingGrantStore from "./auth/PairingGrantStore.ts";
 import * as SessionStore from "./auth/SessionStore.ts";
 import { failEnvironmentAuthInvalid, failEnvironmentInternal } from "./auth/http.ts";
 import * as RelayClient from "@t3tools/shared/relayClient";
+const isCoCoError = Schema.is(CoCoError);
+const isFocusGenerationError = Schema.is(TextGenerationError);
+
 const isOrchestrationDispatchCommandError = Schema.is(OrchestrationDispatchCommandError);
 
 const nowIso = Effect.map(DateTime.now, DateTime.formatIso);
@@ -471,6 +479,7 @@ const makeWsRpcLayer = (
   clientOrigin: OrchestrationClientOrigin,
   clientAnalyticsProps: Readonly<Record<string, unknown>>,
   previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
+  jiraAgentBroker: JiraAgentBroker.JiraAgentBroker["Service"],
 ) =>
   WsRpcGroup.toLayer(
     Effect.gen(function* () {
@@ -531,6 +540,7 @@ const makeWsRpcLayer = (
       const config = yield* ServerConfig.ServerConfig;
       const lifecycleEvents = yield* ServerLifecycleEvents.ServerLifecycleEvents;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
+
       const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
       const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
@@ -604,6 +614,7 @@ const makeWsRpcLayer = (
       const sourceControlRepositories =
         yield* SourceControlRepositoryService.SourceControlRepositoryService;
       const pullRequests = yield* PullRequestService.PullRequestService;
+      const coco = yield* CoCoService;
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
       const sessions = yield* SessionStore.SessionStore;
       const processDiagnostics = yield* ProcessDiagnostics.ProcessDiagnostics;
@@ -1100,6 +1111,9 @@ const makeWsRpcLayer = (
                 commandId: yield* serverCommandId("bootstrap-thread-create"),
                 threadId: command.threadId,
                 projectId: bootstrap.createThread.projectId,
+                ...(bootstrap.createThread.cocoAgentId
+                  ? { cocoAgentId: bootstrap.createThread.cocoAgentId }
+                  : {}),
                 title: bootstrap.createThread.title,
                 modelSelection: bootstrap.createThread.modelSelection,
                 runtimeMode: bootstrap.createThread.runtimeMode,
@@ -1981,6 +1995,63 @@ const makeWsRpcLayer = (
             }),
             { "rpc.aggregate": "server" },
           ),
+        [WS_METHODS.cocoGenerateFocus]: (input) =>
+          Effect.gen(function* () {
+            const project = yield* projectionSnapshotQuery.getProjectShellById(input.projectId);
+            const settings = yield* serverSettings.getSettings;
+            const link = settings.cocoProjectContexts[input.projectId]?.jira;
+            if (
+              Option.isNone(project) ||
+              !link ||
+              link.siteUrl !== input.siteUrl ||
+              link.projectKey !== input.projectKey
+            )
+              return yield* new CoCoError({
+                message: "The project or Jira link changed. Refresh before generating suggestions.",
+              });
+            if (
+              input.snapshot.issues.length > 500 ||
+              input.snapshot.issues.reduce(
+                (size, issue) => size + Object.values(issue).join("").length,
+                0,
+              ) > 80_000
+            )
+              return yield* new CoCoError({
+                message:
+                  "Too many issues for a compact summary. Refresh the board to summarize its first page.",
+              });
+            const result = yield* makeTextGenerationFromRegistry(providerInstances).generateFocus!({
+              cwd: project.value.workspaceRoot,
+              modelSelection: settings.textGenerationModelSelection,
+              snapshot: input.snapshot,
+            });
+            return yield* Effect.try({
+              try: () => validateFocus(result, input.snapshot),
+              catch: (cause) =>
+                new CoCoError({
+                  message:
+                    cause instanceof Error ? cause.message : "Could not validate suggestions.",
+                }),
+            });
+          }).pipe(
+            Effect.mapError(
+              (cause) =>
+                new CoCoError({
+                  message: isCoCoError(cause)
+                    ? cause.message
+                    : isFocusGenerationError(cause)
+                      ? cause.detail
+                      : "Could not prepare the project summary. Refresh and try again.",
+                }),
+            ),
+          ),
+        [WS_METHODS.cocoGetLibrary]: () => coco.read,
+        [WS_METHODS.cocoSkillsAction]: ({ action }) =>
+          coco
+            .act(action)
+            .pipe(
+              Effect.tap(() => (action === "disable" ? Effect.void : providerRegistry.refresh())),
+            ),
         [WS_METHODS.serverGetSettings]: (_input) =>
           observeRpcEffect(
             WS_METHODS.serverGetSettings,
@@ -2663,6 +2734,18 @@ const makeWsRpcLayer = (
           observeRpcEffect(WS_METHODS.previewReportStatus, previewManager.reportStatus(input), {
             "rpc.aggregate": "preview",
           }),
+        [WS_METHODS.jiraAgentConnect]: (input) =>
+          observeRpcStream(
+            WS_METHODS.jiraAgentConnect,
+            jiraAgentBroker.connect(currentSessionId, input),
+            { "rpc.aggregate": "jira-agent" },
+          ),
+        [WS_METHODS.jiraAgentRespond]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.jiraAgentRespond,
+            jiraAgentBroker.respond(currentSessionId, input),
+            { "rpc.aggregate": "jira-agent" },
+          ),
         [WS_METHODS.previewAutomationConnect]: (input) =>
           observeRpcStreamEffect(
             WS_METHODS.previewAutomationConnect,
@@ -2905,6 +2988,7 @@ const makeWsRpcLayer = (
 export const websocketRpcRouteLayer = Layer.unwrap(
   Effect.gen(function* () {
     const previewAutomationBroker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
+    const jiraAgentBroker = yield* JiraAgentBroker.JiraAgentBroker;
     const baseServerSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
     const config = yield* ServerConfig.ServerConfig;
     const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
@@ -2932,6 +3016,7 @@ export const websocketRpcRouteLayer = Layer.unwrap(
         ),
     });
     const pullRequests = yield* PullRequestService.PullRequestService;
+    const coco = yield* CoCoService;
     return HttpRouter.add(
       "GET",
       "/ws",
@@ -2964,6 +3049,7 @@ export const websocketRpcRouteLayer = Layer.unwrap(
               clientOrigin,
               clientAnalyticsProps,
               previewAutomationBroker,
+              jiraAgentBroker,
             ).pipe(
               Layer.provideMerge(RpcSerialization.layerJson),
               Layer.provide(AgentSessionScanner.layer),
@@ -2972,6 +3058,7 @@ export const websocketRpcRouteLayer = Layer.unwrap(
               // One server-lifetime service means clients share the same PR caches, and a WS
               // mutation invalidates the HTTP diff cache that every client reads from.
               Layer.provide(Layer.succeed(PullRequestService.PullRequestService, pullRequests)),
+              Layer.provide(Layer.succeed(CoCoService, coco)),
               Layer.provide(
                 SourceControlDiscovery.layer.pipe(
                   Layer.provide(

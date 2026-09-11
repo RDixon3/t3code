@@ -63,6 +63,23 @@ function makeThreadOpenResponse(
 }
 
 describe("buildTurnStartParams", () => {
+  it("appends the persona to developer instructions without changing user input", () => {
+    const params = Effect.runSync(
+      buildTurnStartParams({
+        threadId: "persona-thread",
+        runtimeMode: "full-access",
+        prompt: "My message",
+        interactionMode: "plan",
+        agentInstructions: "Manage persona",
+      }),
+    );
+    NodeAssert.equal(params.collaborationMode?.mode, "plan");
+    NodeAssert.ok(
+      params.collaborationMode?.settings.developer_instructions?.includes("Manage persona"),
+    );
+    NodeAssert.ok(!JSON.stringify(params.input).includes("Manage persona"));
+    NodeAssert.ok(JSON.stringify(params.input).includes("My message"));
+  });
   it("keeps invalid turn values only in the schema cause", () => {
     const secret = "codex-turn-input-secret-sentinel";
     const error = Effect.runSync(

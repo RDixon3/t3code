@@ -7,6 +7,7 @@
  *
  * @module ClaudeTextGeneration
  */
+import { buildFocusPrompt } from "../coco/focus.ts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -102,7 +103,8 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
       | "generateCommitMessage"
       | "generatePrContent"
       | "generateBranchName"
-      | "generateThreadTitle",
+      | "generateThreadTitle"
+      | "generateFocus",
     value: unknown,
     detail: string,
   ): Effect.Effect<string, TextGenerationError> =>
@@ -132,7 +134,8 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
       | "generateCommitMessage"
       | "generatePrContent"
       | "generateBranchName"
-      | "generateThreadTitle";
+      | "generateThreadTitle"
+      | "generateFocus";
     cwd: string;
     prompt: string;
     outputSchemaJson: S;
@@ -408,7 +411,18 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
       };
     });
 
+  const generateFocus = (input: TextGeneration.FocusGenerationInput) => {
+    const { prompt, outputSchema } = buildFocusPrompt(input.snapshot);
+    return runClaudeJson({
+      operation: "generateFocus",
+      cwd: input.cwd,
+      modelSelection: input.modelSelection,
+      prompt,
+      outputSchemaJson: outputSchema,
+    });
+  };
   return {
+    generateFocus,
     generateCommitMessage,
     generatePrContent,
     generateBranchName,

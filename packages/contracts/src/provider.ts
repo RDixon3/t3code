@@ -52,6 +52,7 @@ export const ProviderSession = Schema.Struct({
 export type ProviderSession = typeof ProviderSession.Type;
 
 export const ProviderSessionStartInput = Schema.Struct({
+  agentInstructions: Schema.optional(Schema.String),
   threadId: ThreadId,
   provider: Schema.optional(ProviderDriverKind),
   // See ProviderSession for the migration story.

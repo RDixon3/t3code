@@ -79,6 +79,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/keybindings": KeyboardIcon,
   "/settings/snap-shot": SnapShotIcon,
   "/settings/providers": BotIcon,
+  "/settings/agents": BotIcon,
   "/settings/integrations": BlocksIcon,
   "/settings/source-control": GitBranchIcon,
   "/settings/connections": Link2Icon,

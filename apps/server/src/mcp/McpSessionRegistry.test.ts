@@ -127,3 +127,19 @@ it.effect("does not keep credentials of other threads alive", () =>
     expect(yield* registry.resolve(token)).toBeUndefined();
   }),
 );
+
+it.effect("issues Jira-only credentials without granting preview access", () =>
+  Effect.gen(function* () {
+    const registry = yield* makeRegistry(() => 1000);
+    const issued = yield* registry.issue({
+      threadId: ThreadId.make("jira"),
+      providerInstanceId: ProviderInstanceId.make("codex"),
+      capabilities: ["jira"],
+    });
+    const scope = yield* registry.resolve(
+      issued.config.authorizationHeader.replace(/^Bearer\s+/, ""),
+    );
+    expect(scope?.capabilities.has("jira")).toBe(true);
+    expect(scope?.capabilities.has("preview")).toBe(false);
+  }),
+);

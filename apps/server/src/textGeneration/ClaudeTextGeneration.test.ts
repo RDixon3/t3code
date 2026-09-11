@@ -260,6 +260,24 @@ function withFakeClaudeEnv<A, E, R>(
 }
 
 it.layer(ClaudeTextGenerationTestLayer)("ClaudeTextGeneration", (it) => {
+  it.effect("generates suggested focus through the existing Claude runner", () =>
+    withFakeClaudeEnv(
+      { output: JSON.stringify({ structured_output: { suggestions: [] } }) },
+      (textGeneration) =>
+        Effect.gen(function* () {
+          const result = yield* textGeneration.generateFocus!({
+            cwd: process.cwd(),
+            snapshot: { issues: [], nextPageToken: null },
+            modelSelection: createModelSelection(
+              ProviderInstanceId.make("claudeAgent"),
+              "claude-sonnet-4-6",
+            ),
+          });
+          expect(result).toEqual({ suggestions: [] });
+        }),
+    ),
+  );
+
   it.effect("forwards Claude thinking settings without passing unsupported effort", () =>
     withFakeClaudeEnv(
       {

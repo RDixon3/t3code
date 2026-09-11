@@ -1,3 +1,4 @@
+import { CoCoAgentPicker } from "./chat/CoCoAgentPicker";
 import { useLoadBalancedEnvironment } from "../hooks/useLoadBalancedEnvironment";
 import type { UsageLimitSourceSnapshots } from "@t3tools/contracts";
 import {
@@ -1495,6 +1496,13 @@ export default function ChatView(props: ChatViewProps) {
       },
     };
   }, [routeKind, routeThreadRef, routeThreadState]);
+  const manageLayout = useUiStateStore((store) => store.manageLayout);
+  const draftAgentId =
+    draftThread?.cocoAgentId === undefined
+      ? manageLayout
+        ? "manage"
+        : "build"
+      : draftThread.cocoAgentId;
   const markThreadVisited = useUiStateStore((store) => store.markThreadVisited);
   const settings = useEnvironmentSettings(environmentId);
   const primaryServerSettings = useAtomValue(primaryServerSettingsAtom);
@@ -1558,6 +1566,11 @@ export default function ChatView(props: ChatViewProps) {
   );
   const clearComposerDraftContent = useComposerDraftStore((store) => store.clearComposerContent);
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
+  useEffect(() => {
+    if (draftThread && draftThread.cocoAgentId === undefined && !draftThread.promotedTo) {
+      setDraftThreadContext(composerDraftTarget, { cocoAgentId: draftAgentId });
+    }
+  }, [composerDraftTarget, draftAgentId, draftThread, setDraftThreadContext]);
   const getDraftSessionByLogicalProjectKey = useComposerDraftStore(
     (store) => store.getDraftSessionByLogicalProjectKey,
   );
@@ -6977,6 +6990,7 @@ export default function ChatView(props: ChatViewProps) {
               ...(isLocalDraftThread
                 ? {
                     createThread: {
+                      ...(draftAgentId ? { cocoAgentId: draftAgentId } : {}),
                       projectId: activeProject.id,
                       title,
                       modelSelection: threadCreateModelSelection,
@@ -8138,7 +8152,10 @@ export default function ChatView(props: ChatViewProps) {
           data-chat-header
           electron={isElectron}
           reserveNativeControls={reserveTitleBarControlInset && !inlineRightPanelOwnsTitleBar}
-          className="relative bg-background"
+          className={cn(
+            "relative bg-background",
+            manageLayout && "h-24 min-h-24 border-b border-border/60 pt-6 pb-3",
+          )}
         >
           {isElectron && rightPanelControlsAtRoot ? (
             <span
@@ -8148,6 +8165,7 @@ export default function ChatView(props: ChatViewProps) {
           ) : null}
           {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
           <ChatHeader
+            manage={Boolean(manageLayout)}
             {...(!supportsPullRequests || activeProjectRepository === null
               ? {}
               : { onOpenPullRequest: openProjectPullRequest })}
@@ -8340,6 +8358,22 @@ export default function ChatView(props: ChatViewProps) {
                       <ComposerSurface.Host>
                         <div ref={attachDraftHeroComposerAnchorRef} className="relative z-10">
                           <ChatComposer
+                            renderAgentControl={(size) => (
+                              <CoCoAgentPicker
+                                environmentId={environmentId}
+                                agentId={draftAgentId}
+                                locked={!isLocalDraftThread}
+                                lockedName={
+                                  activeThread?.cocoAgent?.name ??
+                                  routeServerThreadShell?.cocoAgent?.name
+                                }
+                                onChange={(id) =>
+                                  setDraftThreadContext(composerDraftTarget, { cocoAgentId: id })
+                                }
+                                onNewChat={handleNewThreadInActiveProject}
+                                size={size}
+                              />
+                            )}
                             renderProjectContextControl={(size) => (
                               <ServiceNowSdkProfilePicker
                                 key={`${environmentId}:${activeProject?.id ?? "none"}`}

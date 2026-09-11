@@ -148,6 +148,19 @@ function withFakeCodexEnv<A, E, R>(
 }
 
 it.layer(CodexTextGenerationTestLayer)("CodexTextGeneration", (it) => {
+  it.effect("generates suggested focus through the existing Codex runner", () =>
+    withFakeCodexEnv({ output: JSON.stringify({ suggestions: [] }) }, (textGeneration) =>
+      Effect.gen(function* () {
+        const result = yield* textGeneration.generateFocus!({
+          cwd: process.cwd(),
+          snapshot: { issues: [], nextPageToken: null },
+          modelSelection: DEFAULT_TEST_MODEL_SELECTION,
+        });
+        expect(result).toEqual({ suggestions: [] });
+      }),
+    ),
+  );
+
   it.effect("generates and sanitizes commit messages without branch by default", () =>
     withFakeCodexEnv(
       {

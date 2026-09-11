@@ -1,3 +1,7 @@
+import { ProjectId } from "./baseSchemas.ts";
+import { JiraIssuePageSchema } from "./ipc.ts";
+import { CoCoLibrary, CoCoError, CoCoFocusResult } from "./coco.ts";
+import { JiraAgentError, JiraAgentHost, JiraAgentEvent, JiraAgentResponse } from "./jiraAgent.ts";
 import * as Schema from "effect/Schema";
 import * as Rpc from "effect/unstable/rpc/Rpc";
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup";
@@ -236,6 +240,9 @@ import {
 import { VcsError } from "./vcs.ts";
 
 export const WS_METHODS = {
+  cocoGenerateFocus: "coco.generateFocus",
+  cocoGetLibrary: "coco.getLibrary",
+  cocoSkillsAction: "coco.skillsAction",
   // Project registry methods
   projectsList: "projects.list",
   projectsAdd: "projects.add",
@@ -306,6 +313,8 @@ export const WS_METHODS = {
   previewClose: "preview.close",
   previewList: "preview.list",
   previewReportStatus: "preview.reportStatus",
+  jiraAgentConnect: "jiraAgent.connect",
+  jiraAgentRespond: "jiraAgent.respond",
   previewAutomationConnect: "previewAutomation.connect",
   previewAutomationRespond: "previewAutomation.respond",
   previewAutomationFocusHost: "previewAutomation.focusHost",
@@ -511,6 +520,26 @@ const WsServerCommitDesktopUpdateRpc = Rpc.make(WS_METHODS.serverCommitDesktopUp
   error: Schema.Union([ServerSelfUpdateError, EnvironmentAuthorizationError]),
 });
 
+const WsCoCoGenerateFocusRpc = Rpc.make(WS_METHODS.cocoGenerateFocus, {
+  payload: Schema.Struct({
+    projectId: ProjectId,
+    siteUrl: Schema.String,
+    projectKey: Schema.String,
+    snapshot: JiraIssuePageSchema,
+  }),
+  success: CoCoFocusResult,
+  error: Schema.Union([CoCoError, EnvironmentAuthorizationError]),
+});
+const WsCoCoGetLibraryRpc = Rpc.make(WS_METHODS.cocoGetLibrary, {
+  payload: Schema.Struct({}),
+  success: CoCoLibrary,
+  error: Schema.Union([CoCoError, EnvironmentAuthorizationError]),
+});
+const WsCoCoSkillsActionRpc = Rpc.make(WS_METHODS.cocoSkillsAction, {
+  payload: Schema.Struct({ action: Schema.Literals(["enable", "disable", "retry", "remove"]) }),
+  success: CoCoLibrary,
+  error: Schema.Union([CoCoError, EnvironmentAuthorizationError]),
+});
 const WsServerGetSettingsRpc = Rpc.make(WS_METHODS.serverGetSettings, {
   payload: Schema.Struct({}),
   success: ServerSettings,
@@ -1029,6 +1058,17 @@ const WsPreviewReportStatusRpc = Rpc.make(WS_METHODS.previewReportStatus, {
   error: Schema.Union([PreviewError, EnvironmentAuthorizationError]),
 });
 
+const WsJiraAgentConnectRpc = Rpc.make(WS_METHODS.jiraAgentConnect, {
+  payload: JiraAgentHost,
+  success: JiraAgentEvent,
+  stream: true,
+  error: Schema.Union([JiraAgentError, EnvironmentAuthorizationError]),
+});
+const WsJiraAgentRespondRpc = Rpc.make(WS_METHODS.jiraAgentRespond, {
+  payload: JiraAgentResponse,
+  error: Schema.Union([JiraAgentError, EnvironmentAuthorizationError]),
+});
+
 const WsPreviewAutomationConnectRpc = Rpc.make(WS_METHODS.previewAutomationConnect, {
   payload: PreviewAutomationHost,
   success: PreviewAutomationStreamEvent,
@@ -1182,6 +1222,9 @@ const WsSubscribeResourceTelemetryRpc = Rpc.make(WS_METHODS.subscribeResourceTel
 });
 
 export const WsRpcGroup = RpcGroup.make(
+  WsCoCoGenerateFocusRpc,
+  WsCoCoGetLibraryRpc,
+  WsCoCoSkillsActionRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
@@ -1285,6 +1328,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsPreviewCloseRpc,
   WsPreviewListRpc,
   WsPreviewReportStatusRpc,
+  WsJiraAgentConnectRpc,
+  WsJiraAgentRespondRpc,
   WsPreviewAutomationConnectRpc,
   WsPreviewAutomationRespondRpc,
   WsPreviewAutomationFocusHostRpc,

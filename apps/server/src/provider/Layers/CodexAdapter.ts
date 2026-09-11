@@ -2256,6 +2256,7 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
             : undefined;
         const mcpSession = McpProviderSession.readMcpProviderSession(input.threadId);
         const runtimeInput: CodexSessionRuntimeOptions = {
+          ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
           threadId: input.threadId,
           providerInstanceId: boundInstanceId,
           cwd: input.cwd ?? process.cwd(),

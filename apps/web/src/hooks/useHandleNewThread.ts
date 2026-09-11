@@ -97,6 +97,14 @@ export function useNewThreadHandler() {
         setModelSelection,
       } = useComposerDraftStore.getState();
       const requestingRouteHref = router.state.location.href;
+      // Empty drafts are reused by new-chat actions, so initialize the persona
+      // here rather than only when the composer first sees a draft.
+      const cocoAgentId =
+        requestingRouteHref.split(/[?#]/)[0] === "/pursue"
+          ? "pursuit"
+          : useUiStateStore.getState().manageLayout
+            ? "manage"
+            : "build";
       const routeChangedSinceRequest = () => router.state.location.href !== requestingRouteHref;
       const currentRouteTarget = getCurrentRouteTarget();
       // A new thread carries the user's working mode from the thread being
@@ -300,6 +308,7 @@ export function useNewThreadHandler() {
             projectRef,
             emptyStoredDraftThread.draftId,
             {
+              cocoAgentId,
               threadId: emptyStoredDraftThread.threadId,
               ...workspaceContext,
               ...(carryRuntimeMode ? { runtimeMode: carryRuntimeMode } : {}),
@@ -347,6 +356,7 @@ export function useNewThreadHandler() {
           setDraftThreadContext(currentRouteTarget.draftId, pickExplicitWorkspaceOptions(options));
         }
         setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, currentRouteTarget.draftId, {
+          cocoAgentId,
           threadId: latestActiveDraftThread.threadId,
           createdAt: latestActiveDraftThread.createdAt,
           runtimeMode: latestActiveDraftThread.runtimeMode,
@@ -404,6 +414,7 @@ export function useNewThreadHandler() {
           return { draftId: racedDraft.draftId, threadId: racedDraft.threadId };
         }
         setLogicalProjectDraftThreadId(logicalProjectKey, projectRef, draftId, {
+          cocoAgentId,
           threadId,
           createdAt,
           branch: options?.branch ?? null,

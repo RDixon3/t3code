@@ -92,6 +92,10 @@ async function createOrchestrationSystem(databasePath?: string) {
   return {
     engine,
     readModel: () => runtime.runPromise(snapshotQuery.getSnapshot()),
+    readAgent: (threadId: ThreadId) =>
+      runtime.runPromise(snapshotQuery.getThreadCoCoAgent(threadId)),
+    readShell: (threadId: ThreadId) =>
+      runtime.runPromise(snapshotQuery.getThreadShellById(threadId)),
     readThread: (threadId: ThreadId) =>
       runtime.runPromise(snapshotQuery.getThreadDetailById(threadId)),
     run: <A, E>(effect: Effect.Effect<A, E>) => runtime.runPromise(effect),
@@ -115,6 +119,93 @@ const hasMetricSnapshot = (
   );
 
 describe("OrchestrationEngine", () => {
+  it("snapshots the server persona and preserves it through projection updates and restart", async () => {
+    const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "coco-persona-"));
+    const database = NodePath.join(root, "state.sqlite");
+    let system = await createOrchestrationSystem(database);
+    const projectId = ProjectId.make("persona-project");
+    const threadId = ThreadId.make("persona-thread");
+    try {
+      await system.run(
+        system.engine.dispatch({
+          type: "project.create",
+          commandId: CommandId.make("persona-project"),
+          projectId,
+          title: "Project",
+          workspaceRoot: root,
+          createdAt: now(),
+        }),
+      );
+      const create: OrchestrationCommand = {
+        type: "thread.create",
+        commandId: CommandId.make("persona-thread"),
+        threadId,
+        projectId,
+        title: "Manage",
+        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        branch: null,
+        worktreePath: null,
+        createdAt: now(),
+        cocoAgentId: "manage",
+        cocoAgent: {
+          id: "fake",
+          name: "Fake",
+          description: "",
+          prompt: "Client must not supply instructions",
+          skills: [],
+        },
+      };
+      await system.run(system.engine.dispatch(create));
+      const thread = Option.getOrThrow(await system.readThread(threadId));
+      expect(thread.cocoAgent?.id).toBe("manage");
+      expect(Option.getOrThrow(await system.readAgent(threadId))).toEqual(thread.cocoAgent);
+      expect(thread.cocoAgent?.prompt).not.toContain("Client must not");
+      expect(Option.getOrThrow(await system.readShell(threadId)).cocoAgent).toEqual({
+        id: "manage",
+        name: "Manage",
+      });
+      await system.run(
+        system.engine.dispatch({
+          type: "thread.meta.update",
+          commandId: CommandId.make("persona-title"),
+          threadId,
+          title: "Updated",
+        }),
+      );
+      await system.dispose();
+      system = await createOrchestrationSystem(database);
+      expect(Option.getOrThrow(await system.readThread(threadId)).cocoAgent).toEqual(
+        thread.cocoAgent,
+      );
+      expect(Option.getOrThrow(await system.readThread(threadId)).messages).toEqual([]);
+      await expect(
+        system.run(
+          system.engine.dispatch({
+            ...create,
+            threadId: ThreadId.make("unknown-agent"),
+            commandId: CommandId.make("unknown-agent"),
+            cocoAgentId: "unknown",
+          }),
+        ),
+      ).rejects.toThrow("unavailable");
+      await system.run(
+        system.engine.dispatch({
+          ...create,
+          threadId: ThreadId.make("default-agent"),
+          commandId: CommandId.make("default-agent"),
+          cocoAgentId: undefined,
+        }),
+      );
+      expect(
+        Option.getOrThrow(await system.readThread(ThreadId.make("default-agent"))).cocoAgent,
+      ).toBeNull();
+    } finally {
+      await system.dispose();
+      await NodeFSP.rm(root, { recursive: true, force: true });
+    }
+  });
   it.each(["running", "stopped"] as const)(
     "sends async answers with a %s session and rejects old duplicate replies",
     async (status) => {
@@ -436,6 +527,7 @@ describe("OrchestrationEngine", () => {
           getFullThreadDiffContext: () => Effect.succeed(Option.none()),
           getThreadRuntimeContext: () => Effect.die("unused"),
           getTurnStartMessage: () => Effect.die("unused"),
+          getThreadCoCoAgent: () => Effect.die(new Error("Not used in this test")),
           getThreadShellById: () => Effect.succeed(Option.none()),
           getThreadDetailById: () => Effect.succeed(Option.none()),
           getThreadDetailSnapshot: () => Effect.succeed(Option.none()),

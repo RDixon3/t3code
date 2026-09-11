@@ -374,6 +374,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           projectId: command.projectId,
           title: command.title,
           modelSelection: command.modelSelection,
+          ...(command.cocoAgent ? { cocoAgent: command.cocoAgent } : {}),
           runtimeMode: command.runtimeMode,
           interactionMode: command.interactionMode,
           branch: command.branch,

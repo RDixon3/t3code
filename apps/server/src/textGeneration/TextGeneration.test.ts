@@ -60,6 +60,24 @@ const makeStubRegistry = (
 };
 
 describe("makeTextGenerationFromRegistry", () => {
+  it.effect("reports unsupported focus providers without starting a chat", () =>
+    Effect.gen(function* () {
+      const id = ProviderInstanceId.make("other");
+      const tg = TextGeneration.makeTextGenerationFromRegistry(
+        makeStubRegistry([makeStubInstance(id, makeStubTextGeneration({}))]),
+      );
+      const result = yield* tg.generateFocus!({
+        cwd: process.cwd(),
+        snapshot: { issues: [], nextPageToken: null },
+        modelSelection: createModelSelection(id, "model"),
+      }).pipe(Effect.result);
+      expect(Result.isFailure(result)).toBe(true);
+      if (Result.isFailure(result))
+        expect(result.failure.detail).toContain(
+          "Suggested focus supports Codex, Claude and Cursor",
+        );
+    }),
+  );
   it.effect("delegates to the matching instance's textGeneration closure", () =>
     Effect.gen(function* () {
       const personalId = ProviderInstanceId.make("codex_personal");

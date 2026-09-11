@@ -7,6 +7,7 @@
  * @module ProjectionSnapshotQuery
  */
 import type {
+  CoCoAgent,
   AgentSessionImportSource,
   ApprovalRequestId,
   CheckpointRef,
@@ -201,6 +202,10 @@ export interface ProjectionSnapshotQueryShape {
   /**
    * Read a single active thread shell row by id.
    */
+  readonly getThreadCoCoAgent: (
+    threadId: ThreadId,
+  ) => Effect.Effect<Option.Option<CoCoAgent>, ProjectionRepositoryError>;
+
   readonly getThreadShellById: (
     threadId: ThreadId,
   ) => Effect.Effect<Option.Option<OrchestrationThreadShell>, ProjectionRepositoryError>;

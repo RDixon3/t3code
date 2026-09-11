@@ -1,3 +1,4 @@
+import { CoCoAgent, CoCoAgentSummary } from "./coco.ts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
@@ -608,6 +609,7 @@ export const ThreadLinkedPullRequest = Schema.Struct({
 export type ThreadLinkedPullRequest = typeof ThreadLinkedPullRequest.Type;
 
 export const OrchestrationThread = Schema.Struct({
+  cocoAgent: Schema.optional(Schema.NullOr(CoCoAgent)),
   id: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
@@ -690,6 +692,7 @@ export const OrchestrationProjectShell = Schema.Struct({
 export type OrchestrationProjectShell = typeof OrchestrationProjectShell.Type;
 
 export const OrchestrationThreadShell = Schema.Struct({
+  cocoAgent: Schema.optional(Schema.NullOr(CoCoAgentSummary)),
   id: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
@@ -918,6 +921,8 @@ const ProjectDeleteCommand = Schema.Struct({
 });
 
 const ThreadCreateCommand = Schema.Struct({
+  cocoAgentId: Schema.optional(Schema.String),
+  cocoAgent: Schema.optional(CoCoAgent),
   type: Schema.Literal("thread.create"),
   commandId: CommandId,
   threadId: ThreadId,
@@ -1067,6 +1072,7 @@ const ThreadInteractionModeSetCommand = Schema.Struct({
 });
 
 const ThreadTurnStartBootstrapCreateThread = Schema.Struct({
+  cocoAgentId: Schema.optional(Schema.String),
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
   modelSelection: ModelSelection,
@@ -1446,6 +1452,7 @@ export const ProjectDeletedPayload = Schema.Struct({
 });
 
 export const ThreadCreatedPayload = Schema.Struct({
+  cocoAgent: Schema.optional(CoCoAgent),
   threadId: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,

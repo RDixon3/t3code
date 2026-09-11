@@ -167,6 +167,7 @@ describe("ProviderCommandReactor", () => {
   });
 
   async function createHarness(input?: {
+    readonly cocoAgentId?: string;
     readonly sendTurnEffect?: () => Effect.Effect<void>;
     readonly baseDir?: string;
     readonly threadModelSelection?: ModelSelection;
@@ -506,6 +507,7 @@ describe("ProviderCommandReactor", () => {
       engine.dispatch({
         type: "thread.create",
         commandId: CommandId.make("cmd-thread-create"),
+        ...(input?.cocoAgentId ? { cocoAgentId: input.cocoAgentId } : {}),
         threadId: ThreadId.make("thread-1"),
         projectId: asProjectId("project-1"),
         title: "Thread",
@@ -620,6 +622,45 @@ describe("ProviderCommandReactor", () => {
       },
     };
   }
+
+  effectIt.effect(
+    "sends the saved CoCo persona to the provider without changing the user message",
+    () =>
+      Effect.gen(function* () {
+        const sent = yield* Deferred.make<void>();
+        const harness = yield* Effect.promise(() =>
+          createHarness({
+            cocoAgentId: "manage",
+            sendTurnEffect: () => Deferred.succeed(sent, undefined).pipe(Effect.asVoid),
+          }),
+        );
+        yield* harness.engine.dispatch({
+          type: "thread.turn.start",
+          commandId: CommandId.make("coco-turn"),
+          runtimeMode: "approval-required",
+          interactionMode: "default",
+          threadId: ThreadId.make("thread-1"),
+          message: {
+            messageId: MessageId.make("coco-message"),
+            role: "user",
+            text: "Review project work",
+            attachments: [],
+          },
+          createdAt: "2026-01-01T00:00:01.000Z",
+        });
+        yield* Deferred.await(sent);
+        yield* Effect.promise(() => harness.drain());
+        expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
+          agentInstructions: expect.stringContaining("Manage assistant"),
+        });
+        const snapshot = yield* Effect.promise(() => harness.readModel());
+        const thread = snapshot.threads.find((entry) => entry.id === "thread-1");
+        expect(thread?.cocoAgent?.id).toBe("manage");
+        expect(thread?.messages.find((message) => message.id === "coco-message")?.text).toBe(
+          "Review project work",
+        );
+      }),
+  );
 
   effectIt.effect.each(["new", "ready", "stopped"] as const)(
     "handles sign-out for a %s thread before worktree repair, text helpers, or startup",

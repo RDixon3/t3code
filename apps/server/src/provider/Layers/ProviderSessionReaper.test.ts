@@ -249,6 +249,7 @@ describe("ProviderSessionReaper", () => {
           getFullThreadDiffContext: () => Effect.die("unused"),
           getThreadRuntimeContext: () => Effect.die("unused"),
           getTurnStartMessage: () => Effect.die("unused"),
+          getThreadCoCoAgent: () => Effect.die(new Error("Not used in this test")),
           getThreadShellById: (threadId) =>
             Effect.succeed(
               input.readModel.threads.find((thread) => thread.id === threadId)

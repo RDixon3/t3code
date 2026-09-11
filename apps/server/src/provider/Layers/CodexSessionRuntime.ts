@@ -154,6 +154,7 @@ type CodexThreadItem =
   | EffectCodexSchema.V2ThreadRollbackResponse["thread"]["turns"][number]["items"][number];
 
 export interface CodexSessionRuntimeOptions {
+  readonly agentInstructions?: string;
   readonly threadId: ThreadId;
   readonly providerInstanceId?: ProviderInstanceId;
   readonly binaryPath: string;
@@ -566,31 +567,38 @@ function runtimeModeToTurnSandboxPolicy(
 }
 
 function buildCodexCollaborationMode(input: {
+  readonly agentInstructions?: string;
   readonly interactionMode?: ProviderInteractionMode;
   readonly model?: string;
   readonly effort?: EffectCodexSchema.V2TurnStartParams__ReasoningEffort;
   readonly browserToolsAvailable?: boolean;
 }): EffectCodexSchema.V2TurnStartParams__CollaborationMode | undefined {
-  if (input.interactionMode === undefined) {
+  if (input.interactionMode === undefined && !input.agentInstructions) {
     return undefined;
   }
   const model = normalizeCodexModelSlug(input.model) ?? DEFAULT_MODEL;
   const reasoningEffort = input.effort ?? "medium";
   return {
-    mode: input.interactionMode,
+    mode: input.interactionMode ?? "default",
     settings: {
       model,
       reasoning_effort: reasoningEffort,
-      developer_instructions: buildCodexDeveloperInstructions(
-        input.interactionMode,
-        { model, reasoningEffort },
-        input.browserToolsAvailable ?? true,
-      ),
+      developer_instructions: [
+        buildCodexDeveloperInstructions(
+          input.interactionMode ?? "default",
+          { model, reasoningEffort },
+          input.browserToolsAvailable ?? true,
+        ),
+        input.agentInstructions,
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     },
   };
 }
 
 export function buildTurnStartParams(input: {
+  readonly agentInstructions?: string;
   readonly threadId: string;
   readonly runtimeMode: RuntimeMode;
   readonly prompt?: string;
@@ -621,6 +629,7 @@ export function buildTurnStartParams(input: {
 
   const config = runtimeModeToThreadConfig(input.runtimeMode);
   const collaborationMode = buildCodexCollaborationMode({
+    ...(input.agentInstructions ? { agentInstructions: input.agentInstructions } : {}),
     ...(input.interactionMode ? { interactionMode: input.interactionMode } : {}),
     ...(input.model ? { model: input.model } : {}),
     ...(input.effort ? { effort: input.effort } : {}),
@@ -2341,6 +2350,7 @@ export const makeCodexSessionRuntime = (
             input.model ?? (yield* Ref.get(sessionRef)).model,
           );
           const params = yield* buildTurnStartParams({
+            ...(options.agentInstructions ? { agentInstructions: options.agentInstructions } : {}),
             threadId: providerThreadId,
             runtimeMode: options.runtimeMode,
             ...(input.input ? { prompt: input.input } : {}),

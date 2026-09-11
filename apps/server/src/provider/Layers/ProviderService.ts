@@ -378,6 +378,7 @@ function toRuntimeStatus(session: ProviderSession): "starting" | "running" | "st
 function toRuntimePayloadFromSession(
   session: ProviderSession,
   extra?: {
+    readonly agentInstructions?: string | null;
     readonly modelSelection?: unknown;
     readonly continueAfterServerUpdate?: TurnId;
     readonly lastRuntimeEvent?: string;
@@ -391,6 +392,9 @@ function toRuntimePayloadFromSession(
     lastError: session.lastError ?? null,
     ...(extra?.continueAfterServerUpdate !== undefined
       ? { continueAfterServerUpdate: extra.continueAfterServerUpdate }
+      : {}),
+    ...(extra?.agentInstructions !== undefined
+      ? { agentInstructions: extra.agentInstructions }
       : {}),
     ...(extra?.modelSelection !== undefined ? { modelSelection: extra.modelSelection } : {}),
     ...(extra?.lastRuntimeEvent !== undefined ? { lastRuntimeEvent: extra.lastRuntimeEvent } : {}),
@@ -891,18 +895,17 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
 
   const prepareMcpSession = (threadId: ThreadId, providerInstanceId: ProviderInstanceId) =>
     Effect.gen(function* () {
-      if (!(yield* agentBrowserAccessEnabled(threadId))) {
-        // Revoke as well as clear. Every other prepare path reaches
-        // `issueActiveMcpCredential`, which revokes the thread first, so
-        // skipping it here would leave a previously issued bearer token valid
-        // against `/mcp` for the rest of its liveness window — and later turns
-        // would keep refreshing it. A session restart (runtime mode, cwd,
-        // model) re-prepares without stopping, so it relies on this.
+      const browserAccess = yield* agentBrowserAccessEnabled(threadId);
+      if (!browserAccess) {
         yield* revokeMcpCredential(threadId);
         yield* Effect.sync(() => McpProviderSession.clearMcpProviderSession(threadId));
-        return undefined;
       }
-      const credential = yield* issueMcpCredential({ threadId, providerInstanceId });
+      // Jira shares the transport, but never grants browser access implicitly.
+      const credential = yield* issueMcpCredential({
+        threadId,
+        providerInstanceId,
+        capabilities: browserAccess ? ["preview", "jira"] : ["jira"],
+      });
       if (credential) {
         yield* Effect.sync(() => McpProviderSession.setMcpProviderSession(credential.config));
       }
@@ -1005,6 +1008,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
     session: ProviderSession,
     threadId: ThreadId,
     extra?: {
+      readonly agentInstructions?: string | null;
       readonly modelSelection?: unknown;
       readonly continueAfterServerUpdate?: TurnId;
       readonly lastRuntimeEvent?: string;
@@ -1199,6 +1203,12 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
           providerInstanceId: bindingInstanceId,
           ...(persistedCwd ? { cwd: persistedCwd } : {}),
           ...(persistedModelSelection ? { modelSelection: persistedModelSelection } : {}),
+          ...(input.binding.runtimePayload !== null &&
+          typeof input.binding.runtimePayload === "object" &&
+          "agentInstructions" in input.binding.runtimePayload &&
+          typeof input.binding.runtimePayload.agentInstructions === "string"
+            ? { agentInstructions: input.binding.runtimePayload.agentInstructions }
+            : {}),
           ...(hasResumeCursor ? { resumeCursor: input.binding.resumeCursor } : {}),
           runtimeMode: input.binding.runtimeMode ?? "full-access",
         })
@@ -1450,6 +1460,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         });
         yield* upsertSessionBinding(sessionWithInstance, threadId, {
           modelSelection: input.modelSelection,
+          agentInstructions: input.agentInstructions ?? null,
         });
         yield* analytics.record("provider.session.started", {
           provider: sessionWithInstance.provider,

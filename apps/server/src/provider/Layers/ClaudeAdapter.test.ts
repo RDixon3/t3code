@@ -377,6 +377,35 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
+  it.effect("appends the CoCo persona while retaining the native preset and skills", () => {
+    const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "claude-persona-"));
+    const harness = makeHarness({ baseDir, cwd: process.cwd() });
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+      yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: ProviderDriverKind.make("claudeAgent"),
+        runtimeMode: "full-access",
+        agentInstructions: "Manage persona",
+      });
+      const options = harness.getLastCreateQueryInput()?.options;
+      assert.deepEqual(options?.settingSources, ["user", "project", "local"]);
+      const prompt = options?.systemPrompt;
+      assert.isObject(prompt);
+      if (typeof prompt === "object" && !Array.isArray(prompt) && prompt.type === "preset") {
+        assert.equal(prompt.preset, "claude_code");
+        assert.include(prompt.append ?? "", "Manage persona");
+        assert.include(prompt.append ?? "", "runtime_info");
+      } else {
+        assert.fail("Expected the native Claude preset");
+      }
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+      Effect.ensuring(Effect.sync(() => NodeFS.rmSync(baseDir, { recursive: true, force: true }))),
+    );
+  });
+
   it.effect("derives bypass permission mode from full-access runtime policy", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

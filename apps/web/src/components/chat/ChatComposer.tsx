@@ -1239,6 +1239,7 @@ export interface ChatComposerHandle {
 // --------------------------------------------------------------------------
 
 export interface ChatComposerProps {
+  renderAgentControl?: (size: "sm" | "xs") => ReactNode;
   renderProjectContextControl?: (size: "sm" | "xs") => ReactNode;
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
@@ -4145,6 +4146,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           data-resting-controls-separator="true"
         />
       ) : null}
+      {props.renderAgentControl?.(composerControlsInStrip ? "xs" : "sm")}
       <ProviderModelPicker
         isComposerOwned
         compact={composerControlsCompact}

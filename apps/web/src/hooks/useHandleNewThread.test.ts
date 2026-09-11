@@ -4,6 +4,7 @@ const testState = vi.hoisted(() => {
   let completeProjectFileRead: (value: null) => void = () => undefined;
   let projectFileRead = Promise.resolve<null>(null);
   let storedDraft: {
+    readonly cocoAgentId?: string;
     readonly draftId: string;
     readonly environmentId: string;
     readonly promotedTo: null;
@@ -30,6 +31,7 @@ const testState = vi.hoisted(() => {
   };
 
   return {
+    manageLayout: false,
     completeProjectFileRead: (value: null) => completeProjectFileRead(value),
     draftStore,
     get projectFileRead() {
@@ -137,13 +139,60 @@ vi.mock("../state/server", () => ({
 vi.mock("../threadRoutes", () => ({ resolveThreadRouteTarget: () => null }));
 vi.mock("../uiStateStore", () => ({
   legacyProjectCwdPreferenceKey: () => "remote-project",
-  useUiStateStore: () => [],
+  useUiStateStore: Object.assign(() => [], {
+    getState: () => ({ manageLayout: testState.manageLayout }),
+  }),
 }));
 vi.mock("./useSettings", () => ({ useClientSettings: () => ({}) }));
 
 import { useNewThreadHandler } from "./useHandleNewThread";
 
 describe("useNewThreadHandler", () => {
+  it.each([false, true])(
+    "defaults a new chat to its tab when reusing an empty draft: %s",
+    async (manageLayout) => {
+      testState.reset({
+        draftId: "draft-existing",
+        environmentId: "environment-ssh",
+        promotedTo: null,
+        threadId: "thread-existing",
+        cocoAgentId: "pursuit",
+      });
+      testState.manageLayout = manageLayout;
+      const pending = useNewThreadHandler()({
+        environmentId: "environment-ssh",
+        projectId: "project-remote",
+      } as never);
+      // Resolve the asynchronous project lookup after the tab changes. The
+      // initiating tab owns this new-chat request.
+      testState.manageLayout = !manageLayout;
+      testState.completeProjectFileRead(null);
+      await pending;
+      expect(testState.draftStore.setLogicalProjectDraftThreadId).toHaveBeenCalledWith(
+        "remote-project",
+        expect.anything(),
+        "draft-existing",
+        expect.objectContaining({ cocoAgentId: manageLayout ? "manage" : "build" }),
+      );
+      testState.manageLayout = false;
+    },
+  );
+  it("assigns Build when creating a fresh draft in Build", async () => {
+    testState.reset(null);
+    testState.manageLayout = false;
+    const pending = useNewThreadHandler()({
+      environmentId: "environment-ssh",
+      projectId: "project-remote",
+    } as never);
+    testState.completeProjectFileRead(null);
+    await pending;
+    expect(testState.draftStore.setLogicalProjectDraftThreadId).toHaveBeenCalledWith(
+      "remote-project",
+      expect.anything(),
+      "draft-delayed",
+      expect.objectContaining({ cocoAgentId: "build" }),
+    );
+  });
   it.each([
     ["new", null],
     [

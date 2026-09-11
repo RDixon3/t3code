@@ -1,4 +1,4 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useParams } from "@tanstack/react-router";
 
 import { cn } from "../../lib/utils";
 import { useSidebar } from "../ui/sidebar";
@@ -9,10 +9,14 @@ import { useNavigate } from "@tanstack/react-router";
 
 export function WorkspaceModeSwitch() {
   const pathname = useLocation({ select: (location) => location.pathname });
+  const params = useParams({ strict: false });
+  const manageLayout = useUiStateStore((state) => state.manageLayout);
+  const setManageLayout = useUiStateStore((state) => state.setManageLayout);
   const legacy = useLegacySidebarEnabled();
 
   const { isMobile, setOpenMobile } = useSidebar();
-  const mode = pathname === "/pursue" ? "Pursue" : pathname === "/manage" ? "Manage" : "Build";
+  const mode =
+    pathname === "/pursue" ? "Pursue" : pathname === "/manage" || manageLayout ? "Manage" : "Build";
 
   return (
     <>
@@ -25,7 +29,9 @@ export function WorkspaceModeSwitch() {
             key={label}
             to={label === "Build" ? "/" : label === "Pursue" ? "/pursue" : "/manage"}
             aria-current={mode === label ? "page" : undefined}
-            onClick={() => {
+            onClick={(event) => {
+              setManageLayout(label === "Manage");
+              if (label !== "Pursue" && (params.threadId || params.draftId)) event.preventDefault();
               if (isMobile) setOpenMobile(false);
             }}
             className={cn(
