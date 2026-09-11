@@ -1,4 +1,4 @@
-import { BrowserWindow } from "electron";
+import { BrowserWindow, net } from "electron";
 import {
   JiraIssuesRequestSchema,
   JiraIssuePageSchema,
@@ -44,6 +44,8 @@ export const installJiraIpc = Effect.fn("desktop.ipc.installJira")(function* () 
   });
   const credentialsPath = environment.path.join(environment.stateDir, "jira-credentials.enc");
   const connection = makeJiraConnection({
+    // Use Chromium networking, as other desktop requests do, to honor the host's proxy setup.
+    fetch: (input, init) => net.fetch(input instanceof URL ? input.href : input, init),
     read: () =>
       Effect.runPromise(
         Effect.gen(function* () {

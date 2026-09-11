@@ -33,3 +33,26 @@ export function makeJiraDiagnostics() {
     text: () => lines.map(redact).join("\n"),
   };
 }
+
+/** Keep network cause codes (TLS, proxy, DNS) without serializing request objects or headers. */
+export function describeJiraError(error: unknown): string {
+  const seen = new Set<unknown>();
+  const describe = (value: unknown, depth: number): string => {
+    if (depth > 3 || value === null || typeof value !== "object" || seen.has(value)) return "";
+    seen.add(value);
+    const name = "name" in value && typeof value.name === "string" ? value.name : "Error";
+    const message = "message" in value && typeof value.message === "string" ? value.message : "";
+    const code =
+      "code" in value && (typeof value.code === "string" || typeof value.code === "number")
+        ? ` [${value.code}]`
+        : "";
+    const causes = [
+      "cause" in value ? describe(value.cause, depth + 1) : "",
+      ...("errors" in value && Array.isArray(value.errors)
+        ? value.errors.slice(0, 3).map((cause: unknown) => describe(cause, depth + 1))
+        : []),
+    ].filter(Boolean);
+    return `${name}${code}${message ? `: ${message}` : ""}${causes.length ? `; caused by ${causes.join("; ")}` : ""}`;
+  };
+  return describe(error, 0) || "Unknown failure";
+}

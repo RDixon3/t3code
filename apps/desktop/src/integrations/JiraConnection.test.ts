@@ -479,13 +479,18 @@ describe("Jira connection", () => {
     },
   );
 
-  it("runs v1 discovery, PKCE exchange and tools probe end to end", async () => {
+  it("uses the injected network client for v1 discovery, PKCE exchange and reconnect", async () => {
     const f = fixture();
     const nativeFetch = globalThis.fetch;
     let redirectUri = "";
     let tokenExchanged = false;
-    const mock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const requested: string[] = [];
+    const mock = vi
+      .spyOn(globalThis, "fetch")
+      .mockRejectedValue(new Error("Unexpected global fetch"));
+    const injectedFetch: typeof globalThis.fetch = async (input, init) => {
       const url = new URL(String(input));
+      requested.push(url.pathname);
       if (url.hostname === "127.0.0.1") return nativeFetch(input, init);
       if (url.pathname.includes("oauth-protected-resource"))
         return Response.json({
@@ -545,10 +550,11 @@ describe("Jira connection", () => {
         });
       }
       throw new Error(`Unexpected request to ${url.origin}${url.pathname}`);
-    });
+    };
     try {
       const connection = makeJiraConnection({
         ...f.deps,
+        fetch: injectedFetch,
         openExternal: async (address) => {
           const authorization = new URL(address);
           expect(authorization.searchParams.get("code_challenge_method")).toBe("S256");
@@ -560,12 +566,33 @@ describe("Jira connection", () => {
       });
       expect((await connection.connect()).checkedAt).not.toBeNull();
       expect(tokenExchanged).toBe(true);
+      expect(requested).toContain("/register");
+      expect(requested).toContain("/token");
+      expect(requested.some((path) => path.includes("oauth-protected-resource"))).toBe(true);
       expect((await connection.test()).connected).toBe(true);
       expect(connection.diagnostics()).toContain(`/v1/mcp`);
       expect(connection.diagnostics()).toContain("tools/list: Complete");
+      expect(mock).not.toHaveBeenCalled();
     } finally {
       mock.mockRestore();
     }
+  });
+  it("records the failed HTTP endpoint and underlying network cause without tokens", async () => {
+    const connection = makeJiraConnection({
+      ...fixture(saved).deps,
+      fetch: async () => {
+        throw new TypeError("fetch failed", {
+          cause: Object.assign(new Error("proxy rejected old-token"), { code: "ECONNRESET" }),
+        });
+      },
+    });
+    await expect(connection.test()).rejects.toThrow("ECONNRESET");
+    expect(connection.diagnostics()).toContain(
+      "HTTP failed: POST https://mcp.atlassian.com/v1/mcp",
+    );
+    expect(connection.diagnostics()).toContain("caused by Error [ECONNRESET]");
+    expect(connection.diagnostics()).not.toContain("old-token");
+    expect((await connection.status()).checkedAt).toBeNull();
   });
   it("starts disconnected and does not open sign-in when testing without credentials", async () => {
     const f = fixture();

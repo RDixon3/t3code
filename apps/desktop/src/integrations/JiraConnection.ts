@@ -22,7 +22,7 @@ import {
 } from "./jiraIssues.ts";
 import { listenForOAuth } from "./oauthCallback.ts";
 import { jiraToolData, parseJiraSites, parseJiraProjects } from "./jiraDiscovery.ts";
-import { makeJiraDiagnostics } from "./jiraDiagnostics.ts";
+import { describeJiraError, makeJiraDiagnostics } from "./jiraDiagnostics.ts";
 
 export const listenForJiraOAuth = (state: string, signal: AbortSignal) =>
   listenForOAuth(state, signal, { path: "/jira/callback", port: 0, name: "Jira" });
@@ -35,6 +35,7 @@ type Credentials = {
 
 /** One app connection, independent of agent providers and project/thread state. */
 export function makeJiraConnection(deps: {
+  fetch?: typeof globalThis.fetch;
   read: () => Promise<string | undefined>;
   write: (value: string) => Promise<void>;
   remove: () => Promise<void>;
@@ -77,13 +78,19 @@ export function makeJiraConnection(deps: {
       authProvider: provider,
       fetch: async (url, init) => {
         const address = new URL(url instanceof Request ? url.url : String(url));
-        const response = await fetch(url, {
+        const response = await (deps.fetch ?? globalThis.fetch)(url, {
           ...init,
           signal: AbortSignal.any([
             signal,
             AbortSignal.timeout(30_000),
             ...(init?.signal ? [init.signal] : []),
           ]),
+        }).catch((error: unknown) => {
+          diagnostics.add(
+            "HTTP failed",
+            `${init?.method ?? "GET"} ${address.origin}${address.pathname}; ${describeJiraError(error)}`,
+          );
+          throw error;
         });
         diagnostics.add(
           "HTTP",
@@ -287,10 +294,7 @@ export function makeJiraConnection(deps: {
       }
     })()
       .catch((cause: unknown) => {
-        diagnostics.add(
-          `FAILED ${stage}`,
-          cause instanceof Error ? `${cause.name}: ${cause.message}` : "Unknown failure",
-        );
+        diagnostics.add(`FAILED ${stage}`, describeJiraError(cause));
         if (cause && typeof cause === "object" && "code" in cause)
           diagnostics.add("error code", String(cause.code));
         throw new Error(
