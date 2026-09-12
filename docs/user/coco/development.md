@@ -205,8 +205,9 @@ vp run dist:desktop:win:x64
 
 These repository commands build desktop artifacts under `release`. They do not, by themselves, apply the complete CoCo release preparation.
 
-The CoCo macOS release workflow applies product identity, theme defaults, isolated data, and manual-update configuration.
-It builds an Apple Silicon DMG and publishes a GitHub release.
-It does not produce a Windows installer or a notarized macOS application.
+The **CoCo Desktop Release** workflow applies product identity, theme defaults, isolated data, and manual-update configuration.
+Its file remains `.github/workflows/coco-macos-release.yml`.
+It publishes an Apple Silicon DMG and a Windows x64 NSIS EXE installer in one GitHub release.
+The macOS app is ad-hoc signed without notarization. The Windows installer is unsigned; this workflow uses no signing certificates.
 
 Use the repository's release procedure for team distribution. Use [Updates](updates.md) for installation and version verification.

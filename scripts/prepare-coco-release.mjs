@@ -3,6 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import sharp from "sharp";
+import { encodePngIco, WINDOWS_ICON_SIZES } from "./lib/icon-export.ts";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 async function replace(file, before, after) {
@@ -27,10 +28,17 @@ await replace(
   'artifactName: "T3-Code-${version}-${arch}.${ext}"',
   'artifactName: "CoCo-${version}-${arch}.${ext}"',
 );
+// NSIS derives its default installation folder from the staged package name.
+await replace("scripts/build-desktop-artifact.ts", 'name: "t3code",', 'name: "coco",');
 await replace(
   "scripts/build-desktop-artifact.ts",
   "macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,",
   'macIconPng: "apps/desktop/resources/coco-icon.png",',
+);
+await replace(
+  "scripts/build-desktop-artifact.ts",
+  "windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,",
+  'windowsIconIco: "apps/desktop/resources/coco-icon.ico",',
 );
 // Seal the renamed Electron bundle without an Apple certificate. Keep the
 // builder's default Electron entitlements, including library validation relief.
@@ -97,4 +105,15 @@ const svg =
 <path d="M700 303 A290 290 0 1 0 700 721" fill="none" stroke="#fd5108" stroke-width="116" stroke-linecap="round"/>
 <circle cx="732" cy="512" r="58" fill="#ffffff"/></svg>`);
 await sharp(svg).png().toFile(path.join(root, "apps/desktop/resources/coco-icon.png"));
+await writeFile(
+  path.join(root, "apps/desktop/resources/coco-icon.ico"),
+  encodePngIco(
+    await Promise.all(
+      WINDOWS_ICON_SIZES.map(async (size) => ({
+        size,
+        contents: await sharp(svg).resize(size, size).png().toBuffer(),
+      })),
+    ),
+  ),
+);
 console.log("Prepared CoCo identity, isolated data, bundled theme, icon, and manual updates.");

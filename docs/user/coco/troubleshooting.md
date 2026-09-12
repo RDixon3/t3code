@@ -205,6 +205,7 @@ First identify whether you use a packaged release or a development checkout.
 | ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
 | macOS reports an application-trust error        | Read the team's release instructions. The current pilot DMG is ad-hoc signed and is not notarized.                   |
 | macOS reports a damaged app                     | Make sure that you downloaded the intended release completely. Ask support to examine its checksum and installation. |
+| Windows blocks an unrecognized app or publisher | The Windows installer is unsigned. Use your organization's approved installation process.                            |
 | Company policy blocks installation              | Ask IT for the approved installation process. Do not disable operating-system protections globally.                  |
 | The app opens from the DMG                      | Put the app in **Applications**. Start that installed copy.                                                          |
 | A development command fails                     | Use [Development setup](development.md). Record the first terminal error.                                            |

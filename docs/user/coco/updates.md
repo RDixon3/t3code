@@ -33,7 +33,7 @@ Refer to [Settings walkthrough](settings.md) for the recovery setting and **Appl
 
 ## Update the CoCo desktop app
 
-The current CoCo Apple Silicon release uses a manual installer. Automatic app updates are disabled in that release.
+CoCo releases use manual installers for Apple Silicon macOS and Windows x64. Automatic app updates are disabled in both builds.
 The development app also does not install production updates.
 
 Use the release supplied by your team. An upstream T3 installer can replace CoCo with a different application.
@@ -53,11 +53,12 @@ Use the release supplied by your team. An upstream T3 installer can replace CoCo
 
 For the Apple Silicon DMG, put **CoCo.app** in **Applications**. If macOS requests a replacement, make sure that the target is your existing CoCo application.
 
+For Windows x64, run the EXE installer for the new release. Use the same CoCo installation location.
+
 Keep the CoCo data directory. An application replacement does not require deletion of chats, project folders, or credentials.
 The packaged CoCo app uses a separate data directory from stock T3.
 
-If macOS reports a malware-verification or damaged-app message, use [Launch problems](troubleshooting.md#the-app-does-not-start).
-The current pilot release is not notarized. Company device policy can prevent its installation.
+If the operating system blocks installation or startup, use [Launch problems](troubleshooting.md#the-app-does-not-start).
 
 ## Update a provider
 

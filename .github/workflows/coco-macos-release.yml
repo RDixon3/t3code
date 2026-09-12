@@ -1,4 +1,4 @@
-name: CoCo macOS Release
+name: CoCo Desktop Release
 
 on:
   workflow_dispatch:
@@ -6,14 +6,13 @@ on:
       version:
         description: CoCo version (for example 0.1.0)
         required: true
-        default: "0.1.0"
         type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: coco-macos-release
+  group: coco-desktop-release
   cancel-in-progress: false
 
 jobs:
@@ -64,7 +63,7 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           codesign --display --verbose=2 "$app" 2>&1 | grep -Fx 'Signature=adhoc'
           cd release-files
-          shasum -a 256 *.dmg > SHA256SUMS.txt
+          shasum -a 256 *.dmg > macos-sha256.txt
       - uses: actions/upload-artifact@v4
         with:
           name: coco-macos-arm64
@@ -72,9 +71,121 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # The Windows app retains T3's WSL backend; this is a native module, not a Linux app release.
+  wsl_prebuild:
+    name: Build Windows WSL terminal module
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: false
+      - name: Build Linux node-pty
+        run: |
+          set -euo pipefail
+          vp install --frozen-lockfile --filter=t3...
+          pty_pkg="$(node -e "console.log(require.resolve('node-pty/package.json', { paths: ['./apps/server'] }))")"
+          pty_dir="$(dirname "$pty_pkg")"
+          (cd "$pty_dir" && npx --yes node-gyp rebuild)
+          mkdir -p wsl-prebuild
+          cp "$pty_dir/build/Release/pty.node" wsl-prebuild/pty.node
+          file wsl-prebuild/pty.node | grep 'ELF 64-bit.*x86-64'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wsl-node-pty-x64
+          path: wsl-prebuild/pty.node
+          if-no-files-found: error
+          retention-days: 14
+
+  windows:
+    name: Build unsigned Windows x64 installer
+    needs: wsl_prebuild
+    runs-on: windows-2025
+    timeout-minutes: 90
+    env:
+      VERSION: ${{ inputs.version }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      T3CODE_DESKTOP_SIGNED: "false"
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate version and architecture
+        shell: pwsh
+        run: |
+          if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid release version" }
+          if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw "Expected an x64 runner" }
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: false
+          run-install: false
+      - name: Install dependencies
+        run: vp install --frozen-lockfile --filter=@t3tools/desktop... --filter=t3... --filter=@t3tools/scripts...
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+      - name: Install Spectre-mitigated MSVC libraries
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          $installPath = & "$installer\vswhere.exe" -products * -latest -property installationPath
+          if (-not $installPath) { throw 'Visual Studio was not found' }
+          $process = Start-Process -FilePath "$installer\setup.exe" -WindowStyle Hidden -Wait -PassThru -ArgumentList @(
+            'modify', '--installPath', "`"$installPath`"", '--add',
+            'Microsoft.VisualStudio.Component.VC.Runtimes.x86.x64.Spectre', '--quiet', '--norestart'
+          )
+          if ($process.ExitCode -notin @(0, 3010)) { throw "Visual Studio Installer failed: $($process.ExitCode)" }
+      - uses: actions/download-artifact@v4
+        with:
+          name: wsl-node-pty-x64
+          path: wsl-prebuild
+      - name: Prepare CoCo release
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/update-release-package-versions.ts "$VERSION"
+          node scripts/prepare-coco-release.mjs
+      - name: Build installer
+        shell: bash
+        run: vp run dist:desktop:artifact --platform win --target nsis --arch x64 --build-version "$VERSION" --wsl-prebuild "$GITHUB_WORKSPACE/wsl-prebuild/pty.node" --verbose
+      - name: Verify installation and checksum release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $file = "CoCo-$env:VERSION-x64.exe"
+          $installer = (Resolve-Path "release/$file").Path
+          $installDir = Join-Path $env:LOCALAPPDATA 'Programs/coco'
+          $process = Start-Process -FilePath $installer -ArgumentList '/S' -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "CoCo installation failed: $($process.ExitCode)" }
+          $app = Get-Item (Join-Path $installDir 'CoCo.exe')
+          if ($app.VersionInfo.ProductName -ne 'CoCo') { throw 'Incorrect product branding' }
+          $version = "$($app.VersionInfo.ProductMajorPart).$($app.VersionInfo.ProductMinorPart).$($app.VersionInfo.ProductBuildPart)"
+          if ($version -ne $env:VERSION) { throw 'Incorrect application version' }
+          if (Test-Path (Join-Path $installDir 'resources/app-update.yml')) { throw 'Automatic app updates must remain disabled' }
+          $reader = [System.IO.BinaryReader]::new([System.IO.File]::OpenRead($app.FullName))
+          try {
+            $reader.BaseStream.Position = 0x3c
+            $reader.BaseStream.Position = $reader.ReadInt32()
+            if ($reader.ReadUInt32() -ne 0x00004550 -or $reader.ReadUInt16() -ne 0x8664) { throw 'Expected an x64 application' }
+          } finally { $reader.Dispose() }
+          if ((Get-AuthenticodeSignature $installer).Status -ne 'NotSigned') { throw 'Expected an unsigned installer' }
+          New-Item -ItemType Directory -Path release-files -Force | Out-Null
+          Copy-Item -LiteralPath $installer -Destination "release-files/$file"
+          $hash = (Get-FileHash "release-files/$file" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $file" | Set-Content 'release-files/windows-sha256.txt' -Encoding utf8NoBOM
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coco-windows-x64
+          path: release-files/
+          if-no-files-found: error
+          retention-days: 14
+
   publish:
     name: Publish CoCo GitHub Release
-    needs: build
+    needs: [build, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -86,28 +197,33 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: coco-macos-arm64
+          pattern: coco-*
+          merge-multiple: true
           path: release-files
       - name: Publish release
         run: |
           set -euo pipefail
           cd release-files
+          test -f "CoCo-${VERSION}-arm64.dmg"
+          test -f "CoCo-${VERSION}-x64.exe"
+          cat macos-sha256.txt windows-sha256.txt > SHA256SUMS.txt
           sha256sum --check SHA256SUMS.txt
           cat > release-notes.md <<'NOTES'
-          CoCo pilot for macOS Apple Silicon (M-series Macs).
+          CoCo pilot for macOS Apple Silicon (M-series Macs) and Windows x64.
 
-          Download the DMG, open it, and drag CoCo into Applications.
+          - Mac: download the DMG, open it, and drag CoCo into Applications.
+          - Windows: download and run the x64 EXE installer.
 
-          This build is ad-hoc signed and its app signature is verified during packaging. It is not Developer ID signed or notarized. macOS or company device policy may block it; use your organization's approved installation process.
+          The Mac build is ad-hoc signed and its app signature is verified during packaging; it is not Developer ID signed or notarized. The Windows installer is unsigned and may display an unknown-publisher warning. Use your organization's approved installation process.
 
           - CoCo branding and light/dark theme included.
           - Separate local data in ~/.coco; stock T3 data is not migrated.
           - Manual upgrades: download and install the next CoCo release. Automatic application updates are disabled.
           - Jira and ServiceNow sign-in settings are included. ServiceNow requires your instance's OAuth app registration; pursuit table integration is not configured.
           - Install and authenticate your chosen coding-provider CLI separately.
-          - SHA256SUMS.txt contains the installer checksum.
+          - SHA256SUMS.txt contains both installer checksums.
           NOTES
-          gh release create "coco-v${VERSION}" "CoCo-${VERSION}-arm64.dmg" SHA256SUMS.txt \
-            --target "$RELEASE_COMMIT" --title "CoCo ${VERSION} — Apple Silicon" \
+          gh release create "coco-v${VERSION}" "CoCo-${VERSION}-arm64.dmg" "CoCo-${VERSION}-x64.exe" SHA256SUMS.txt \
+            --target "$RELEASE_COMMIT" --title "CoCo ${VERSION} - Apple Silicon and Windows" \
             --notes-file release-notes.md --draft
           gh release edit "coco-v${VERSION}" --draft=false --latest

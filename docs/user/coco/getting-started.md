@@ -24,7 +24,7 @@ Git is necessary for branches, commits, and worktrees. A folder without Git can 
 
 Use your team's approved [CoCo release](https://github.com/RDixon3/t3code/releases). Sign in to GitHub if the private repository requires authentication.
 
-CoCo targets Windows x64 and Apple Silicon Macs. The current release workflow publishes an Apple Silicon DMG. Select an asset that matches your computer.
+CoCo releases include an Apple Silicon DMG and a Windows x64 EXE installer. Select the installer that matches your computer.
 
 Do not use the upstream T3 installer for CoCo. The upstream app does not include the CoCo changes.
 
@@ -35,9 +35,18 @@ For an Apple Silicon Mac:
 3. Drag CoCo to **Applications**.
 4. Open CoCo from **Applications**.
 
-Current pilot releases use ad-hoc signatures. They do not have Apple notarization. If macOS blocks the app, use your organization's approved installation process.
+The macOS app uses an ad-hoc signature and has no Apple notarization. If macOS blocks the app, use your organization's approved installation process.
 
-If no Windows installer is available, use the approved source setup in [Development setup](development.md). A browser development session does not have every desktop integration.
+For Windows x64:
+
+1. Download the EXE installer from the approved release.
+2. Open the installer.
+3. Complete its installation steps.
+4. Open CoCo.
+
+The Windows installer is unsigned. If Windows or company policy blocks it, use your organization's approved installation process.
+
+For source-based tests, use [Development setup](development.md). A browser development session does not have every desktop integration.
 
 For a replacement installation, use [Keep CoCo and its tools current](updates.md). Preserve your saved CoCo data.
 
