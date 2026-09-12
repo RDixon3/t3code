@@ -1,6 +1,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   DEFAULT_SERVER_SETTINGS,
+  CoCoContentRepository,
   ProviderDriverKind,
   ProviderInstanceId,
   ProjectId,
@@ -274,6 +275,52 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       }),
     ).pipe(Effect.provide(makeServerSettingsLayer())),
   );
+
+  it.effect("persists and clears the CoCo repository without overwriting other settings", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const config = yield* ServerConfig.ServerConfig;
+        const fs = yield* FileSystem.FileSystem;
+        const settings = yield* ServerSettingsModule.ServerSettingsService;
+        assert.isNull((yield* settings.getSettings).cocoContentRepository);
+        const repository = {
+          url: "https://dev.azure.com/team/project/_git/content",
+          branch: "approved/content",
+        };
+        yield* settings.updateSettings({ cocoSkillsEnabled: true });
+        yield* settings.updateSettings({ cocoContentRepository: repository });
+        const read = fs
+          .readFileString(config.settingsPath)
+          .pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(ServerSettings))));
+        assert.deepStrictEqual((yield* read).cocoContentRepository, repository);
+        yield* settings.updateSettings({ cocoContentRepository: null });
+        assert.isNull((yield* read).cocoContentRepository);
+        assert.isTrue((yield* read).cocoSkillsEnabled);
+      }),
+    ).pipe(Effect.provide(makeServerSettingsLayer())),
+  );
+  it("validates repository definitions without accepting credentials or browser query URLs", () => {
+    const valid = Schema.is(CoCoContentRepository);
+    const repository = {
+      url: "https://dev.azure.com/team/project/_git/content",
+      branch: "approved/content",
+    };
+    assert.isTrue(valid(repository));
+    assert.isTrue(
+      valid({ ...repository, url: "https://team.visualstudio.com/project/_git/content" }),
+    );
+    for (const url of [
+      "http://dev.azure.com/team/project/_git/content",
+      "https://user:token@dev.azure.com/team/project/_git/content",
+      repository.url + "?version=GBmain",
+      "not a URL",
+    ]) {
+      assert.isFalse(valid({ ...repository, url }));
+    }
+    for (const branch of ["", "bad branch", "../main", "main\n", "main:other"]) {
+      assert.isFalse(valid({ ...repository, branch }));
+    }
+  });
 
   it.effect("persists CoCo skill opt-in and disabling", () =>
     Effect.scoped(

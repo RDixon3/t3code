@@ -160,6 +160,9 @@ import { useComposerPathSearch } from "../../lib/composerPathSearchState";
 import { type ElementContextDraft } from "../../lib/elementContext";
 import { ComposerPendingElementContexts } from "./ComposerPendingElementContexts";
 import { ComposerPendingReviewComments } from "./ComposerPendingReviewComments";
+import { ContextItemChips } from "./ContextItemChips";
+import { mergeContextItems, type ContextItem } from "../../lib/contextItem";
+import { remainingContextItems } from "../../lib/contextItemSubmission";
 import { ComposerPreviewAnnotationCards } from "./ComposerPreviewAnnotationCards";
 import {
   COMPOSER_FOOTER_COMPACT_BREAKPOINT_PX,
@@ -1220,6 +1223,7 @@ export interface ChatComposerHandle {
     elementContexts: ElementContextDraft[];
     previewAnnotations: PreviewAnnotationPayload[];
     reviewComments: ReviewCommentContext[];
+    contextItems: readonly ContextItem[];
     selectedPromptEffort: string | null;
     selectedModelOptionsForDispatch: unknown;
     selectedModelSelection: ModelSelection;
@@ -1519,6 +1523,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerElementContexts = composerDraft.elementContexts;
   const composerPreviewAnnotations = composerDraft.previewAnnotations;
   const composerReviewComments = composerDraft.reviewComments;
+  const composerContextItems = composerDraft.contextItems;
   const pendingSnapShotAnimations = useSyncExternalStore(
     subscribeToPendingSnapShotAnimations,
     getPendingSnapShotAnimations,
@@ -1594,6 +1599,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const removeComposerDraftReviewComment = useComposerDraftStore(
     (store) => store.removeReviewComment,
   );
+  const setComposerDraftContextItems = useComposerDraftStore((store) => store.setContextItems);
+  const removeComposerDraftContextItem = useComposerDraftStore((store) => store.removeContextItem);
   const clearComposerDraftPersistedAttachments = useComposerDraftStore(
     (store) => store.clearPersistedAttachments,
   );
@@ -1963,7 +1970,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
     usePanelAnimationSettings();
   const isComposerCollapsedMobile =
-    isMobileViewport && !forceExpandedOnMobile && !isComposerFocused && !hasMultilinePrompt;
+    isMobileViewport &&
+    !forceExpandedOnMobile &&
+    !isComposerFocused &&
+    !hasMultilinePrompt &&
+    composerContextItems.length === 0;
 
   // ------------------------------------------------------------------
   // Refs
@@ -2014,7 +2025,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         elementContextCount:
           composerElementContexts.length +
           composerPreviewAnnotations.length +
-          composerReviewComments.length,
+          composerReviewComments.length +
+          composerContextItems.length,
       }),
     [
       composerElementContexts.length,
@@ -2022,6 +2034,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerImages.length,
       composerPreviewAnnotations.length,
       composerReviewComments.length,
+      composerContextItems.length,
       composerTerminalContexts,
       prompt,
     ],
@@ -2427,6 +2440,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerElementContexts,
     composerPreviewAnnotations,
     composerReviewComments,
+    composerContextItems,
     composerTerminalContexts,
     prompt,
     selectedModel,
@@ -3201,7 +3215,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         composerFilesRef.current.length > 0 ||
         composerElementContextsRef.current.length > 0 ||
         composerPreviewAnnotations.length > 0 ||
-        composerReviewComments.length > 0
+        composerReviewComments.length > 0 ||
+        composerContextItems.length > 0
       ) {
         return false;
       }
@@ -3231,6 +3246,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerImagesRef,
       composerPreviewAnnotations.length,
       composerReviewComments.length,
+      composerContextItems.length,
       isComposerApprovalState,
       pendingUserInputs.length,
       promptRef,
@@ -3355,8 +3371,22 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
       // The take is also the double-activation guard (click + Enter): the
       // second caller finds the entry gone and stops here.
+      const contextItems = mergeContextItems(
+        useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.contextItems ?? [],
+        menuEntry.contextItems ?? [],
+      );
+      if (!contextItems) {
+        toastManager.add({
+          type: "error",
+          title: "Too much context to restore",
+          description:
+            "Remove a reference from the draft and try again. Your saved prompt is unchanged.",
+        });
+        return;
+      }
       const { entry, durable } = takeStashEntry(menuEntry.id);
       if (!entry) return;
+      setComposerDraftContextItems(composerDraftTarget, contextItems);
       if (!durable) {
         toastManager.add({
           type: "warning",
@@ -3588,6 +3618,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       promptRef,
       setComposerDraftPrompt,
       takeStashEntry,
+      setComposerDraftContextItems,
     ],
   );
 
@@ -3625,7 +3656,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     const prompt = promptRef.current.split(INLINE_TERMINAL_CONTEXT_PLACEHOLDER).join("").trim();
     const images = [...composerImagesRef.current];
     const files = [...composerFilesRef.current];
-    if (prompt.length === 0 && images.length === 0 && files.length === 0) {
+    const contextItems =
+      useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.contextItems ?? [];
+    if (
+      prompt.length === 0 &&
+      images.length === 0 &&
+      files.length === 0 &&
+      contextItems.length === 0
+    ) {
       const entries = usePromptStashStore.getState().entries;
       const entry = entries.length === 1 ? entries[0] : undefined;
       if (entry && !entry.pendingImageCount) {
@@ -3670,7 +3708,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       .map((image) => `image:${image.id}`)
       .concat(files.map((file) => `file:${file.id}`))
       .join(",");
-    const snapshotKey = [String(composerDraftTarget), prompt, attachmentKey].join("\n");
+    const snapshotKey = [
+      String(composerDraftTarget),
+      prompt,
+      attachmentKey,
+      JSON.stringify(contextItems),
+    ].join("\n");
     if (stashInFlightRef.current.has(snapshotKey)) return;
     stashInFlightRef.current.add(snapshotKey);
 
@@ -3687,6 +3730,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         createdAt: new Date().toISOString(),
         prompt,
         attachments: [],
+        ...(contextItems.length > 0 ? { contextItems } : {}),
         ...(stashedFiles.length > 0 ? { files: stashedFiles } : {}),
         droppedImageNames: [],
         unreadableImageNames: [],
@@ -3723,6 +3767,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       // Terminal and preview context stays behind because the stash cannot restore it.
       promptRef.current = "";
       clearComposerDraftPromptAndImages(stashTarget);
+      setComposerDraftContextItems(
+        stashTarget,
+        remainingContextItems(
+          useComposerDraftStore.getState().getComposerDraft(stashTarget)?.contextItems ?? [],
+          contextItems,
+        ),
+      );
       for (const image of images) {
         releaseAttachmentUpload(image.id);
       }
@@ -3815,6 +3866,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
   }, [
     clearComposerDraftPromptAndImages,
+    setComposerDraftContextItems,
     composerDraftTarget,
     composerFilesRef,
     composerImagesRef,
@@ -3880,6 +3932,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     environmentUnavailable !== null ||
     composerSubmissionError !== null ||
     providerInputSubmissionError !== null ||
+    composerContextItems.length > 0 ||
     hasImageAttachmentAttention;
   const isComposerResting = shouldUseRestingComposerLayout({
     isExistingThread: routeKind === "server" && activeThreadId !== null,
@@ -4854,6 +4907,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         elementContexts: composerElementContextsRef.current,
         previewAnnotations: composerPreviewAnnotations,
         reviewComments: composerReviewComments,
+        contextItems:
+          useComposerDraftStore.getState().getComposerDraft(composerDraftTarget)?.contextItems ??
+          [],
         selectedPromptEffort,
         selectedModelOptionsForDispatch,
         selectedModelSelection,
@@ -5328,6 +5384,16 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     onRemove={(commentId) =>
                       removeComposerDraftReviewComment(composerDraftTarget, commentId)
                     }
+                    className="mb-3"
+                  />
+                )}
+
+              {!isComposerCollapsedMobile &&
+                !isComposerApprovalState &&
+                pendingUserInputs.length === 0 && (
+                  <ContextItemChips
+                    items={composerContextItems}
+                    onRemove={(key) => removeComposerDraftContextItem(composerDraftTarget, key)}
                     className="mb-3"
                   />
                 )}

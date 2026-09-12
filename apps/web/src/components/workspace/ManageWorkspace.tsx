@@ -10,6 +10,8 @@ import { RightPanelResizeHandle } from "../preview/RightPanelResizeHandle";
 import { ManageLanding } from "./ManageLanding";
 import { useWorkspaceProject } from "./useWorkspaceProject";
 import { Button } from "../ui/button";
+import { toastManager } from "../ui/toast";
+import type { ContextItem } from "../../lib/contextItem";
 
 /** Keep the stock chat route mounted, including its draft promotion and shortcuts. */
 export function ManageWorkspace({ children }: { children: ReactNode }) {
@@ -51,6 +53,21 @@ export function ManageWorkspace({ children }: { children: ReactNode }) {
           setTab("chat");
         }
       : undefined;
+  const addContextItem =
+    target && owningProject
+      ? (item: ContextItem) => {
+          const composerTarget = target.kind === "draft" ? target.draftId : target.threadRef;
+          if (!useComposerDraftStore.getState().addContextItem(composerTarget, item)) {
+            toastManager.add({
+              type: "error",
+              title: "Could not add context",
+              description: "Remove a context item from the chat draft and try again.",
+            });
+            return;
+          }
+          setTab("chat");
+        }
+      : undefined;
   return (
     <div className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div className="flex gap-2 border-b p-2 xl:hidden">
@@ -71,7 +88,11 @@ export function ManageWorkspace({ children }: { children: ReactNode }) {
       </div>
       <div className="flex min-h-0 min-w-0 flex-1">
         <div className={`${tab === "work" ? "flex" : "hidden"} min-h-0 min-w-0 flex-1 xl:flex`}>
-          <ManageLanding project={project} onAddToChat={addToChat} />
+          <ManageLanding
+            project={project}
+            onAddToChat={addToChat}
+            onAddContextItem={addContextItem}
+          />
         </div>
         <div
           aria-label="Project chat"

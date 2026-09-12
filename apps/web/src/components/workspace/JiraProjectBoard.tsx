@@ -22,6 +22,7 @@ import {
 } from "../ui/dialog";
 import { jiraColumnTransitions } from "./jiraBoardMove";
 import { JiraIssueCard } from "./JiraIssueCard";
+import type { ContextItem } from "../../lib/contextItem";
 
 const columns = [
   { category: "new", label: "To Do" },
@@ -37,6 +38,7 @@ export function JiraProjectBoard({
   projectId,
   heading,
   onAddToChat,
+  onAddContextItem,
 }: {
   jira: { siteUrl: string; projectKey: string } | null;
   hasProject: boolean;
@@ -44,6 +46,7 @@ export function JiraProjectBoard({
   projectId?: ProjectId;
   heading?: ReactNode;
   onAddToChat?: ((text: string) => void) | undefined;
+  onAddContextItem?: ((item: ContextItem) => void) | undefined;
 }) {
   const [data, setData] = useState<BoardData | null>(null);
   const [loading, setLoading] = useState(Boolean(jira && window.desktopBridge?.listJiraIssues));
@@ -226,7 +229,7 @@ export function JiraProjectBoard({
       busy={blocked}
       onTransition={transition}
       compact={compact}
-      onAddToChat={onAddToChat}
+      onAddContextItem={onAddContextItem}
     />
   );
   return (

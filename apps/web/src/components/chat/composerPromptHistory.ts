@@ -1,4 +1,5 @@
 import { extractTrailingElementContexts } from "../../lib/elementContext";
+import { extractTrailingContextItems } from "../../lib/contextItem";
 import { extractTrailingPreviewAnnotation } from "../../lib/previewAnnotation";
 import { extractTrailingTerminalContexts } from "../../lib/terminalContext";
 import { PLAN_IMPLEMENTATION_PROMPT_PREFIX } from "../../proposedPlan";
@@ -115,12 +116,17 @@ function stripInlineTerminalLabels(prompt: string, headers: ReadonlyArray<string
  * never carries stale context from another turn.
  */
 export function recallableComposerPrompt(messageText: string): string {
-  let prompt = messageText.trim();
-  if (prompt.startsWith(CLAUDE_ULTRATHINK_PREFIX)) {
-    prompt = prompt.slice(CLAUDE_ULTRATHINK_PREFIX.length);
+  let prompt = messageText.trimEnd();
+  if (prompt.trimStart().startsWith(CLAUDE_ULTRATHINK_PREFIX)) {
+    prompt = prompt.trimStart().slice(CLAUDE_ULTRATHINK_PREFIX.length);
   }
 
   while (prompt.length > 0) {
+    const contextItems = extractTrailingContextItems(prompt);
+    if (contextItems.items.length > 0) {
+      prompt = contextItems.promptText;
+      continue;
+    }
     const withoutReviewComments = stripTrailingReviewComments(prompt);
     if (withoutReviewComments !== prompt) {
       prompt = withoutReviewComments;

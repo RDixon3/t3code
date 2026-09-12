@@ -23,6 +23,10 @@ function stashEntrySnippet(entry: PromptStashEntry): string {
   const fileCount = entry.files?.length ?? 0;
   const attachmentCount = imageCount + fileCount;
   if (attachmentCount === 0) {
+    const contextCount = entry.contextItems?.length ?? 0;
+    if (contextCount > 0) {
+      return `(${contextCount} context item${contextCount === 1 ? "" : "s"})`;
+    }
     return "(empty)";
   }
   const label = imageCount > 0 && fileCount > 0 ? "attachment" : fileCount > 0 ? "file" : "image";

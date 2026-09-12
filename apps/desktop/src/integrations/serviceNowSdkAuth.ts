@@ -45,6 +45,7 @@ export function createSdkAuth(
     sessions.delete(id);
   };
   return {
+    isActive: () => sessions.size > 0,
     async start(
       sdkPath: string,
       profile: ServiceNowSdkProfile,

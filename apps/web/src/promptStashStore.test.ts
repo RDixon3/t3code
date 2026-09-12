@@ -6,6 +6,7 @@ import {
 } from "@t3tools/shared/assistantCitations";
 
 import { removeLocalStorageItem } from "./hooks/useLocalStorage";
+import { type ContextItem } from "./lib/contextItem";
 
 import {
   MAX_STASH_ENTRIES,
@@ -105,6 +106,34 @@ describe("promptStashStore", () => {
     store.stashEntry(makeEntry({ id: "second" }));
     const entries = usePromptStashStore.getState().entries;
     expect(entries.map((entry) => entry.id)).toEqual(["second", "first"]);
+  });
+
+  it("persists structured source context and restores its captured snapshot", () => {
+    const context: ContextItem = {
+      source: "jira",
+      sourceLabel: "Jira",
+      sourceScope: "cloud-one",
+      recordId: "RISK-1",
+      title: "Launch risk",
+      kind: "risk",
+      content: "The approved snapshot.",
+    };
+    const entry = { ...makeEntry({ id: "context-stash" }), contextItems: [context] };
+    usePromptStashStore.getState().stashEntry(entry);
+    expect(usePromptStashStore.getState().entries[0]?.contextItems).toEqual([context]);
+    writePromptStashStorageForTest(JSON.stringify({ version: 2, state: { entries: [entry] } }));
+    expect(usePromptStashStore.getState().takeEntry(entry.id).entry?.contextItems).toEqual([
+      context,
+    ]);
+  });
+
+  it("keeps stashed prompts restorable when optional persisted context is malformed", () => {
+    const entry = { ...makeEntry({ id: "invalid-context" }), contextItems: [{ source: "jira" }] };
+    writePromptStashStorageForTest(JSON.stringify({ version: 2, state: { entries: [entry] } }));
+    expect(usePromptStashStore.getState().takeEntry(entry.id).entry).toMatchObject({
+      prompt: entry.prompt,
+      contextItems: [],
+    });
   });
 
   it("restores citations and bound comments from a persisted stash", () => {

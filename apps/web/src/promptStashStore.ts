@@ -6,6 +6,7 @@ import {
   PersistedComposerImageAttachment,
 } from "./composerDraftStore";
 import { createMemoryStorage, type StateStorage } from "./lib/storage";
+import { ContextItemsSchema, normalizeContextItems } from "./lib/contextItem";
 
 export const PROMPT_STASH_STORAGE_KEY = "t3code:prompt-stash:v2";
 /**
@@ -39,6 +40,7 @@ const StashEntrySchema = Schema.Struct({
   prompt: Schema.String,
   attachments: Schema.Array(PersistedComposerImageAttachment),
   files: Schema.optionalKey(Schema.Array(PersistedComposerFileAttachment)),
+  contextItems: Schema.optionalKey(ContextItemsSchema),
   /** Names of images that exceeded the attachment budget and were not saved. */
   droppedImageNames: Schema.Array(Schema.String),
   /**
@@ -59,9 +61,13 @@ const StashEntrySchema = Schema.Struct({
 export type PromptStashEntry = typeof StashEntrySchema.Type;
 
 const PersistedPromptStashState = Schema.Struct({
-  entries: Schema.Array(StashEntrySchema),
+  entries: Schema.Array(
+    Schema.Struct({
+      ...StashEntrySchema.fields,
+      contextItems: Schema.optionalKey(Schema.Unknown),
+    }),
+  ),
 });
-type PersistedPromptStashState = typeof PersistedPromptStashState.Type;
 
 const decodePersistedPromptStashState = Schema.decodeUnknownSync(PersistedPromptStashState);
 
@@ -181,7 +187,15 @@ function readPersistedEntries(): ReadonlyArray<PromptStashEntry> | null {
     const parsed: unknown = JSON.parse(raw);
     const state = (parsed as { state?: unknown } | null)?.state;
     if (!state) return null;
-    return clearOrphanedPendingImages(decodePersistedPromptStashState(state).entries);
+    const entries = decodePersistedPromptStashState(state).entries.map(
+      ({ contextItems, ...entry }) => ({
+        ...entry,
+        ...(contextItems === undefined
+          ? {}
+          : { contextItems: normalizeContextItems(contextItems) }),
+      }),
+    );
+    return clearOrphanedPendingImages(entries);
   } catch {
     return null;
   }
@@ -228,7 +242,13 @@ interface PromptStashStoreState {
 export const usePromptStashStore = create<PromptStashStoreState>()((set, get) => ({
   entries: [],
   stashEntry: (entry) => {
-    const nextEntries = [entry, ...get().entries];
+    const normalizedEntry = {
+      ...entry,
+      ...(entry.contextItems === undefined
+        ? {}
+        : { contextItems: normalizeContextItems(entry.contextItems) }),
+    };
+    const nextEntries = [normalizedEntry, ...get().entries];
     const evicted = nextEntries.length > MAX_STASH_ENTRIES ? (nextEntries.pop() ?? null) : null;
     const { written, durable } = persistEntries(nextEntries);
     // A rejected write must not leave the entry visible either: the caller

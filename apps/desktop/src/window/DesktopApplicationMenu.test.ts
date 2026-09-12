@@ -105,6 +105,7 @@ const makeElectronMenuLayer = (
 const configureMenu = (
   selectedAction: Deferred.Deferred<string>,
   applicationMenuTemplate: Deferred.Deferred<readonly Electron.MenuItemConstructorOptions[]>,
+  platform: NodeJS.Platform = environmentInput.platform,
 ) =>
   Effect.gen(function* () {
     const menu = yield* DesktopApplicationMenu.DesktopApplicationMenu;
@@ -118,7 +119,7 @@ const configureMenu = (
         Layer.provideMerge(electronDialogLayer),
         Layer.provideMerge(electronAppLayer),
         Layer.provideMerge(
-          DesktopEnvironment.layer(environmentInput).pipe(
+          DesktopEnvironment.layer({ ...environmentInput, platform }).pipe(
             Layer.provide(Layer.mergeAll(NodeServices.layer, DesktopConfig.layerTest({}))),
           ),
         ),
@@ -127,6 +128,34 @@ const configureMenu = (
   );
 
 describe("DesktopApplicationMenu", () => {
+  for (const platform of ["win32", "darwin"] as const) {
+    it.effect(`opens CoCo Help through the desktop menu on ${platform}`, () =>
+      Effect.gen(function* () {
+        const selectedAction = yield* Deferred.make<string>();
+        const applicationMenuTemplate =
+          yield* Deferred.make<readonly Electron.MenuItemConstructorOptions[]>();
+
+        yield* configureMenu(selectedAction, applicationMenuTemplate, platform);
+
+        const template = yield* Deferred.await(applicationMenuTemplate);
+        const helpMenu = template.find((item) => item.role === "help");
+        assert.isDefined(helpMenu);
+        if (!Array.isArray(helpMenu.submenu)) {
+          throw new Error("Expected Help menu submenu to be an array.");
+        }
+        assert.isDefined(helpMenu.submenu.find((item) => item.label === "Check for Updates..."));
+        const helpItem = helpMenu.submenu.find((item) => item.label === "CoCo Help");
+        assert.isDefined(helpItem);
+        if (typeof helpItem.click !== "function") {
+          throw new Error("Expected CoCo Help menu item to have a click handler.");
+        }
+
+        helpItem.click({} as Electron.MenuItem, {} as Electron.BrowserWindow, {} as KeyboardEvent);
+        assert.equal(yield* Deferred.await(selectedAction), "help.open");
+      }),
+    );
+  }
+
   it.effect("installs the native menu and routes Settings through DesktopWindow", () =>
     Effect.gen(function* () {
       const selectedAction = yield* Deferred.make<string>();

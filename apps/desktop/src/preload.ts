@@ -82,6 +82,10 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   getJiraTransitions: (input) => ipcRenderer.invoke(IpcChannels.JIRA_TRANSITIONS_CHANNEL, input),
   transitionJiraIssue: (input) => ipcRenderer.invoke(IpcChannels.JIRA_TRANSITION_CHANNEL, input),
   disconnectJira: () => ipcRenderer.invoke(IpcChannels.JIRA_DISCONNECT_CHANNEL),
+  checkServiceNowSdkUpdates: () =>
+    ipcRenderer.invoke(IpcChannels.CHECK_SERVICENOW_SDK_UPDATES_CHANNEL),
+  updateServiceNowSdk: (input) =>
+    ipcRenderer.invoke(IpcChannels.UPDATE_SERVICENOW_SDK_CHANNEL, input),
   installServiceNowSdk: () => ipcRenderer.invoke(IpcChannels.INSTALL_SERVICENOW_SDK_CHANNEL),
   getAppBranding: () => {
     const result = ipcRenderer.sendSync(IpcChannels.GET_APP_BRANDING_CHANNEL);

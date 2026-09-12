@@ -18,6 +18,7 @@ function fixture(initial: string | null, installResult: string | null = metadata
           raw = installResult;
           return "installed";
         }
+        if (args[0] === "view") return '"2.0.0"';
         return "/global/node_modules\n";
       }),
     readPackage: (root) =>
@@ -30,6 +31,101 @@ function fixture(initial: string | null, installResult: string | null = metadata
 }
 
 describe("global ServiceNow SDK", () => {
+  it.effect("checks npm latest without installing or discovering auth profiles", () =>
+    Effect.gen(function* () {
+      const { sdk, commands } = fixture(metadata);
+      expect(yield* sdk.checkUpdates).toMatchObject({
+        version: "1.2.3",
+        latestVersion: "2.0.0",
+        updateAvailable: true,
+      });
+      expect(commands).toEqual([
+        ["root", "--global"],
+        ["view", "@servicenow/sdk@latest", "version", "--json"],
+      ]);
+    }),
+  );
+  it.effect("updates to the requested version and serializes duplicate updates", () =>
+    Effect.gen(function* () {
+      const { sdk, commands } = fixture(metadata, '{"name":"@servicenow/sdk","version":"2.0.0"}');
+      const input = { version: "2.0.0", globalRoot: "/global/node_modules" };
+      const results = yield* Effect.all([sdk.update(input), sdk.update(input)], {
+        concurrency: "unbounded",
+      });
+      expect(results.every((result) => result.version === "2.0.0")).toBe(true);
+      expect(commands.filter((args) => args[0] === "install")).toEqual([
+        ["install", "--global", "--engine-strict", "@servicenow/sdk@2.0.0"],
+      ]);
+    }),
+  );
+  it.effect("does not downgrade or repeat an already installed update", () =>
+    Effect.gen(function* () {
+      const { sdk, commands } = fixture(metadata);
+      yield* sdk.update({ version: "1.2.3", globalRoot: "/global/node_modules" });
+      yield* sdk.update({ version: "1.0.0", globalRoot: "/global/node_modules" });
+      expect(commands.some((args) => args[0] === "install")).toBe(false);
+    }),
+  );
+  it.effect(
+    "rejects changed directories, missing installations, and invalid versions before installation",
+    () =>
+      Effect.gen(function* () {
+        for (const [raw, version, root] of [
+          [metadata, "2.0.0", "/other"],
+          [null, "2.0.0", "/global/node_modules"],
+          [metadata, "latest", "/global/node_modules"],
+        ] as const) {
+          const { sdk, commands } = fixture(raw);
+          yield* Effect.flip(sdk.update({ version, globalRoot: root }));
+          expect(commands.some((args) => args[0] === "install")).toBe(false);
+        }
+      }),
+  );
+  it.effect(
+    "does not report successful updates when npm leaves the wrong version or no package",
+    () =>
+      Effect.gen(function* () {
+        for (const result of [metadata, null]) {
+          const { sdk } = fixture(metadata, result);
+          expect(
+            (yield* Effect.flip(
+              sdk.update({ version: "2.0.0", globalRoot: "/global/node_modules" }),
+            )).message,
+          ).toContain("could not be verified");
+        }
+      }),
+  );
+  it.effect("reports registry errors and malformed responses while local checks still work", () =>
+    Effect.gen(function* () {
+      for (const output of [
+        Effect.succeed('{"version":"bad"}'),
+        Effect.fail(new ServiceNowSdkError({ message: "Registry unavailable" })),
+      ]) {
+        const sdk = makeServiceNowSdk({
+          readPackage: () => Effect.succeed(metadata),
+          runSdk: () => Effect.die("Must not access profiles"),
+          runNpm: (args) => (args[0] === "view" ? output : Effect.succeed("/global")),
+        });
+        yield* Effect.flip(sdk.checkUpdates);
+        expect((yield* sdk.check).version).toBe("1.2.3");
+      }
+    }),
+  );
+  it.effect("propagates npm update failures without claiming success", () =>
+    Effect.gen(function* () {
+      const sdk = makeServiceNowSdk({
+        readPackage: () => Effect.succeed(metadata),
+        runSdk: () => Effect.die("Must not access profiles"),
+        runNpm: (args) =>
+          args[0] === "install"
+            ? Effect.fail(new ServiceNowSdkError({ message: "Permission denied" }))
+            : Effect.succeed("/global"),
+      });
+      expect(
+        (yield* Effect.flip(sdk.update({ version: "2.0.0", globalRoot: "/global" }))).message,
+      ).toBe("Permission denied");
+    }),
+  );
   it.effect("deletes only the confirmed profile and verifies it is gone", () =>
     Effect.gen(function* () {
       let removed = false;

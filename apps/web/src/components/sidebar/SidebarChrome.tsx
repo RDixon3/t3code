@@ -1,6 +1,7 @@
 import { forkFeatures } from "~/forkFeatures";
 import {
   ArrowLeftIcon,
+  BookOpenIcon,
   ChartNoAxesColumnIcon,
   GitPullRequestIcon,
   SettingsIcon,
@@ -10,6 +11,7 @@ import { memo, useCallback } from "react";
 import { Link, useCanGoBack, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
+import { useOpenHelp } from "../../help/navigation";
 import { cn } from "../../lib/utils";
 import { useEnvironments } from "../../state/environments";
 import { WorkspaceModeSwitch } from "../workspace/WorkspaceModeSwitch";
@@ -112,6 +114,7 @@ function SidebarUtilityItem({
 
 export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
+  const openHelp = useOpenHelp();
   const canGoBack = useCanGoBack();
   const { isMobile, setOpenMobile } = useSidebar();
   const currentFooterPage = useLocation({
@@ -148,6 +151,10 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
     closeMobileSidebar();
     void navigate({ to: "/settings" });
   }, [closeMobileSidebar, navigate]);
+  const handleHelpClick = useCallback(() => {
+    closeMobileSidebar();
+    openHelp();
+  }, [closeMobileSidebar, openHelp]);
 
   const handleUsageClick = useCallback(() => {
     if (isMobile) {
@@ -195,6 +202,7 @@ export const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
           />
         </>
       )}
+      <SidebarUtilityItem icon={<BookOpenIcon />} label="Help" onClick={handleHelpClick} />
       <SidebarUpdatePill />
     </SidebarMenu>
   );

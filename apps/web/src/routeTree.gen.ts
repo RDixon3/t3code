@@ -15,6 +15,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PursueRouteImport } from './routes/pursue'
 import { Route as PairRouteImport } from './routes/pair'
 import { Route as ManageRouteImport } from './routes/manage'
+import { Route as HelpRouteImport } from './routes/help'
 import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
@@ -31,6 +32,7 @@ import { Route as SettingsArchivedRouteImport } from './routes/settings.archived
 import { Route as SettingsAppearanceRouteImport } from './routes/settings.appearance'
 import { Route as SettingsAgentsRouteImport } from './routes/settings.agents'
 import { Route as ProjectsProjectKeyRouteImport } from './routes/projects.$projectKey'
+import { Route as HelpArticleIdRouteImport } from './routes/help.$articleId'
 import { Route as ConnectCallbackRouteImport } from './routes/connect_.callback'
 import { Route as ChatPullRequestsRouteImport } from './routes/_chat.pull-requests'
 import { Route as ChatDraftDraftIdRouteImport } from './routes/_chat.draft.$draftId'
@@ -64,6 +66,11 @@ const PairRoute = PairRouteImport.update({
 const ManageRoute = ManageRouteImport.update({
   id: '/manage',
   path: '/manage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpRoute = HelpRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ConnectRoute = ConnectRouteImport.update({
@@ -145,6 +152,11 @@ const ProjectsProjectKeyRoute = ProjectsProjectKeyRouteImport.update({
   path: '/projects/$projectKey',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HelpArticleIdRoute = HelpArticleIdRouteImport.update({
+  id: '/$articleId',
+  path: '/$articleId',
+  getParentRoute: () => HelpRoute,
+} as any)
 const ConnectCallbackRoute = ConnectCallbackRouteImport.update({
   id: '/connect_/callback',
   path: '/connect/callback',
@@ -170,6 +182,7 @@ const ChatEnvironmentIdThreadIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
   '/connect': typeof ConnectRoute
+  '/help': typeof HelpRouteWithChildren
   '/manage': typeof ManageRoute
   '/pair': typeof PairRoute
   '/pursue': typeof PursueRoute
@@ -178,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof WelcomeRoute
   '/pull-requests': typeof ChatPullRequestsRoute
   '/connect/callback': typeof ConnectCallbackRoute
+  '/help/$articleId': typeof HelpArticleIdRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -196,6 +210,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/connect': typeof ConnectRoute
+  '/help': typeof HelpRouteWithChildren
   '/manage': typeof ManageRoute
   '/pair': typeof PairRoute
   '/pursue': typeof PursueRoute
@@ -204,6 +219,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/pull-requests': typeof ChatPullRequestsRoute
   '/connect/callback': typeof ConnectCallbackRoute
+  '/help/$articleId': typeof HelpArticleIdRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -225,6 +241,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
   '/connect': typeof ConnectRoute
+  '/help': typeof HelpRouteWithChildren
   '/manage': typeof ManageRoute
   '/pair': typeof PairRoute
   '/pursue': typeof PursueRoute
@@ -233,6 +250,7 @@ export interface FileRoutesById {
   '/welcome': typeof WelcomeRoute
   '/_chat/pull-requests': typeof ChatPullRequestsRoute
   '/connect_/callback': typeof ConnectCallbackRoute
+  '/help/$articleId': typeof HelpArticleIdRoute
   '/projects/$projectKey': typeof ProjectsProjectKeyRoute
   '/settings/agents': typeof SettingsAgentsRoute
   '/settings/appearance': typeof SettingsAppearanceRoute
@@ -255,6 +273,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/connect'
+    | '/help'
     | '/manage'
     | '/pair'
     | '/pursue'
@@ -263,6 +282,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/pull-requests'
     | '/connect/callback'
+    | '/help/$articleId'
     | '/projects/$projectKey'
     | '/settings/agents'
     | '/settings/appearance'
@@ -281,6 +301,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/connect'
+    | '/help'
     | '/manage'
     | '/pair'
     | '/pursue'
@@ -289,6 +310,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/pull-requests'
     | '/connect/callback'
+    | '/help/$articleId'
     | '/projects/$projectKey'
     | '/settings/agents'
     | '/settings/appearance'
@@ -309,6 +331,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_chat'
     | '/connect'
+    | '/help'
     | '/manage'
     | '/pair'
     | '/pursue'
@@ -317,6 +340,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/_chat/pull-requests'
     | '/connect_/callback'
+    | '/help/$articleId'
     | '/projects/$projectKey'
     | '/settings/agents'
     | '/settings/appearance'
@@ -338,6 +362,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
   ConnectRoute: typeof ConnectRoute
+  HelpRoute: typeof HelpRouteWithChildren
   ManageRoute: typeof ManageRoute
   PairRoute: typeof PairRoute
   PursueRoute: typeof PursueRoute
@@ -390,6 +415,13 @@ declare module '@tanstack/react-router' {
       path: '/manage'
       fullPath: '/manage'
       preLoaderRoute: typeof ManageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help': {
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/connect': {
@@ -504,6 +536,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProjectsProjectKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/help/$articleId': {
+      id: '/help/$articleId'
+      path: '/$articleId'
+      fullPath: '/help/$articleId'
+      preLoaderRoute: typeof HelpArticleIdRouteImport
+      parentRoute: typeof HelpRoute
+    }
     '/connect_/callback': {
       id: '/connect_/callback'
       path: '/connect/callback'
@@ -551,6 +590,16 @@ const ChatRouteChildren: ChatRouteChildren = {
 
 const ChatRouteWithChildren = ChatRoute._addFileChildren(ChatRouteChildren)
 
+interface HelpRouteChildren {
+  HelpArticleIdRoute: typeof HelpArticleIdRoute
+}
+
+const HelpRouteChildren: HelpRouteChildren = {
+  HelpArticleIdRoute: HelpArticleIdRoute,
+}
+
+const HelpRouteWithChildren = HelpRoute._addFileChildren(HelpRouteChildren)
+
 interface SettingsRouteChildren {
   SettingsAgentsRoute: typeof SettingsAgentsRoute
   SettingsAppearanceRoute: typeof SettingsAppearanceRoute
@@ -588,6 +637,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
   ConnectRoute: ConnectRoute,
+  HelpRoute: HelpRouteWithChildren,
   ManageRoute: ManageRoute,
   PairRoute: PairRoute,
   PursueRoute: PursueRoute,

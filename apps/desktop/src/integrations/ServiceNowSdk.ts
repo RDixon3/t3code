@@ -1,4 +1,5 @@
 import type { ServiceNowSdkStatus, ServiceNowSdkProfile } from "@t3tools/contracts";
+import { compareSemverVersions } from "@t3tools/shared/semver";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -22,8 +23,11 @@ const PackageMetadata = Schema.Struct({
   version: Schema.NonEmptyString,
 });
 const decodePackageMetadata = Schema.decodeUnknownEffect(Schema.fromJsonString(PackageMetadata));
+const decodeVersion = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.String));
 const isServiceNowSdkError = Schema.is(ServiceNowSdkError);
 const installLock = Semaphore.makeUnsafe(1);
+const validVersion = (version: string) =>
+  /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version);
 
 export function makeServiceNowSdk(deps: {
   runNpm: (args: ReadonlyArray<string>) => Effect.Effect<string, ServiceNowSdkError>;
@@ -65,6 +69,57 @@ export function makeServiceNowSdk(deps: {
       return result;
     }),
   );
+  const checkUpdates = Effect.gen(function* () {
+    const current = yield* check;
+    if (!current.installed) return current;
+    const output = yield* deps.runNpm(["view", "@servicenow/sdk@latest", "version", "--json"]);
+    const latestVersion = yield* Effect.try({
+      try: () => {
+        const version = decodeVersion(output);
+        if (typeof version !== "string" || !validVersion(version)) throw new Error();
+        return version;
+      },
+      catch: () => new ServiceNowSdkError({ message: "npm returned an invalid SDK version." }),
+    });
+    return {
+      ...current,
+      latestVersion,
+      updateAvailable:
+        current.version !== null && compareSemverVersions(current.version, latestVersion) < 0,
+    };
+  });
+  const update = (input: { version: string; globalRoot: string }) =>
+    installLock.withPermits(1)(
+      Effect.gen(function* () {
+        if (!validVersion(input.version))
+          return yield* new ServiceNowSdkError({
+            message: "Invalid SDK update version. Check for updates again.",
+          });
+        const current = yield* check;
+        if (current.globalRoot !== input.globalRoot)
+          return yield* new ServiceNowSdkError({
+            message: "The global npm directory changed. Check for updates again.",
+          });
+        if (!current.version)
+          return yield* new ServiceNowSdkError({
+            message: "The SDK is no longer installed. Check again and install it.",
+          });
+        if (compareSemverVersions(current.version, input.version) >= 0) return current;
+        yield* deps.runNpm([
+          "install",
+          "--global",
+          "--engine-strict",
+          `@servicenow/sdk@${input.version}`,
+        ]);
+        const result = yield* check;
+        if (result.globalRoot !== current.globalRoot || result.version !== input.version)
+          return yield* new ServiceNowSdkError({
+            message:
+              "npm finished, but the requested SDK version could not be verified. Check again.",
+          });
+        return { ...result, latestVersion: input.version, updateAvailable: false };
+      }),
+    );
   const listProfiles = Effect.gen(function* () {
     const status = yield* check;
     if (!status.installed)
@@ -100,7 +155,7 @@ export function makeServiceNowSdk(deps: {
       });
     return remaining;
   });
-  return { check, install, listProfiles, deleteProfile };
+  return { check, checkUpdates, install, update, listProfiles, deleteProfile };
 }
 
 export const serviceNowSdk = Effect.gen(function* () {

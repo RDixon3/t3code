@@ -1,6 +1,8 @@
 import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import {
+  lazy,
+  Suspense,
   useEffect,
   useState,
   useSyncExternalStore,
@@ -10,6 +12,7 @@ import {
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { isElectron } from "../env";
+import { isHelpPath, updateHelpVisit, useOpenHelp } from "../help/navigation";
 import { getLocalStorageItem, removeLocalStorageItem } from "../hooks/useLocalStorage";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { cn, isMacPlatform } from "../lib/utils";
@@ -47,6 +50,7 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "90px";
+const HelpSidebar = lazy(() => import("./help/HelpSidebar"));
 
 function subscribeToViewportWidth(onChange: () => void): () => void {
   window.addEventListener("resize", onChange);
@@ -133,7 +137,7 @@ function SidebarControl() {
   );
 }
 
-// Settings swaps the thread sidebar out of the tree. Keep the lightweight
+// Settings and Help swap the thread sidebar out of the tree. Keep the lightweight
 // project projection subscribed so returning to a draft never renders the
 // zero-project state while the environment snapshot reconnects.
 function ProjectProjectionRetention() {
@@ -143,15 +147,18 @@ function ProjectProjectionRetention() {
 
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
+  const openHelp = useOpenHelp();
   const legacySidebarEnabled = useLegacySidebarEnabled();
   const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
     usePanelAnimationSettings();
   // Settings routes show the settings nav in place of whichever thread
   // sidebar is active.
   const pathname = useLocation({ select: (location) => location.pathname });
+  useEffect(() => updateHelpVisit(pathname), [pathname]);
   const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
   const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
+  const isOnHelp = isHelpPath(pathname);
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // Subscribed rather than read once: the clamp must track live window size,
@@ -210,13 +217,15 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         if (!isSettingsRoute) {
           void navigate({ to: "/settings" });
         }
+      } else if (action === "help.open") {
+        openHelp();
       }
     });
 
     return () => {
       unsubscribe?.();
     };
-  }, [navigate, pathname]);
+  }, [navigate, openHelp, pathname]);
 
   return (
     <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
@@ -242,7 +251,16 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
             onResize: setSidebarWidth,
           }}
         >
-          {isOnSettings ? (
+          {isOnHelp ? (
+            <>
+              <SidebarChromeHeader isElectron={isElectron} />
+              <Suspense
+                fallback={<p className="p-4 text-sm text-muted-foreground">Loading help…</p>}
+              >
+                <HelpSidebar />
+              </Suspense>
+            </>
+          ) : isOnSettings ? (
             <>
               <SidebarChromeHeader isElectron={isElectron} />
               <SettingsSidebarNav pathname={pathname} />

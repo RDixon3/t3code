@@ -5,28 +5,33 @@ import { JiraProjectBoard } from "./JiraProjectBoard";
 import { SidebarInset } from "../ui/sidebar";
 import type { ProjectContext } from "./projectContext";
 import { ProjectJiraLink } from "../settings/ProjectJiraLink";
+import { HelpLink } from "../help/HelpLink";
+import type { ContextItem } from "../../lib/contextItem";
 
 export function ManageLanding({
   project,
   onAddToChat,
+  onAddContextItem,
 }: {
   project: ProjectContext | null;
   onAddToChat?: ((text: string) => void) | undefined;
+  onAddContextItem?: ((item: ContextItem) => void) | undefined;
 }) {
   const heading = (
     <div className="min-w-0">
       <h1 className="truncate text-2xl font-semibold tracking-tight">
         {project?.name ?? "Project overview"}
       </h1>
-      {project && (
-        <div className="no-drag mt-1">
+      <div className="no-drag mt-1 flex flex-wrap items-center gap-2">
+        {project && (
           <ProjectJiraLink
             environmentId={project.workspace.environmentId}
             projectId={project.workspace.projectId}
             appearance="subtitle"
           />
-        </div>
-      )}
+        )}
+        <HelpLink article="manage" label="Manage guide" />
+      </div>
     </div>
   );
   return (
@@ -39,6 +44,7 @@ export function ManageLanding({
             projectId={project.workspace.projectId}
             heading={heading}
             onAddToChat={onAddToChat}
+            onAddContextItem={onAddContextItem}
           />
         ) : (
           <JiraProjectBoard jira={null} hasProject={false} heading={heading} />
@@ -53,11 +59,13 @@ function LinkedBoard({
   projectId,
   heading,
   onAddToChat,
+  onAddContextItem,
 }: {
   environmentId: EnvironmentId;
   projectId: ProjectId;
   heading: ReactNode;
   onAddToChat?: ((text: string) => void) | undefined;
+  onAddContextItem?: ((item: ContextItem) => void) | undefined;
 }) {
   const jira = useEnvironmentSettings(
     environmentId,
@@ -72,6 +80,7 @@ function LinkedBoard({
       hasProject
       heading={heading}
       onAddToChat={onAddToChat}
+      onAddContextItem={onAddContextItem}
     />
   );
 }

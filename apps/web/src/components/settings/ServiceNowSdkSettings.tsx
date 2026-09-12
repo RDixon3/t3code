@@ -1,62 +1,23 @@
-import type { ServiceNowSdkStatus } from "@t3tools/contracts";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import {
+  useServiceNowSdk,
+  runServiceNowSdk,
+  checkServiceNowSdkOnLaunch,
+} from "../../state/serviceNowSdk";
 import { Button } from "../ui/button";
+import { HelpLink } from "../help/HelpLink";
 import { SettingsSection } from "./settingsLayout";
 import { ServiceNowConnectionSettings } from "./ServiceNowConnectionSettings";
 
 export function ServiceNowSdkSettings() {
   const bridge = window.desktopBridge;
   const available = Boolean(bridge?.checkServiceNowSdk && bridge?.installServiceNowSdk);
-  const [status, setStatus] = useState<ServiceNowSdkStatus | null>(null);
-  const [busy, setBusy] = useState<"checking" | "installing" | null>(available ? "checking" : null);
-  const [error, setError] = useState<string | null>(null);
-  const pending = useRef(false);
-
-  const run = useCallback(
-    async (action: "checking" | "installing") => {
-      const command =
-        action === "checking" ? bridge?.checkServiceNowSdk : bridge?.installServiceNowSdk;
-      if (!command || pending.current) return;
-      pending.current = true;
-      setBusy(action);
-      setError(null);
-      if (action === "checking") setStatus(null);
-      try {
-        setStatus(await command());
-      } catch (cause) {
-        setError(cause instanceof Error ? cause.message : String(cause));
-      } finally {
-        pending.current = false;
-        setBusy(null);
-      }
-    },
-    [bridge],
-  );
-
+  const { status, busy, error } = useServiceNowSdk();
+  const run = runServiceNowSdk;
   useEffect(() => {
-    if (!bridge?.checkServiceNowSdk) return;
-    let active = true;
-    pending.current = true;
-    void bridge
-      .checkServiceNowSdk()
-      .then((result) => {
-        if (active) setStatus(result);
-      })
-      .catch((cause: unknown) => {
-        if (active) setError(cause instanceof Error ? cause.message : String(cause));
-      })
-      .finally(() => {
-        if (active) {
-          pending.current = false;
-          setBusy(null);
-        }
-      });
-    return () => {
-      active = false;
-      pending.current = false;
-    };
-  }, [bridge]);
-
+    if (window.desktopBridge?.checkServiceNowSdkUpdates) void checkServiceNowSdkOnLaunch();
+    else if (!useServiceNowSdk.getState().status) void runServiceNowSdk("checking");
+  }, []);
   return (
     <SettingsSection id="servicenow-sdk" title="ServiceNow">
       <ServiceNowConnectionSettings />
@@ -66,21 +27,33 @@ export function ServiceNowSdkSettings() {
           Global installation on this desktop machine, using your current npm environment. Applies
           to every project.
         </p>
+        <HelpLink article="servicenow" label="SDK and profile guide" />
         {!available ? (
           <p className="text-sm text-muted-foreground">Available in the desktop app.</p>
         ) : (
           <>
             <p role="status" className="text-sm">
-              {busy === "installing"
-                ? "Installing ServiceNow SDK…"
-                : busy === "checking"
-                  ? "Checking global installation…"
-                  : status?.installed
-                    ? `Installed globally · v${status.version}`
-                    : status
-                      ? "Not installed globally"
-                      : "Installation status unavailable"}
+              {busy === "updating"
+                ? "Updating ServiceNow SDK…"
+                : busy === "checkingUpdates"
+                  ? "Checking for SDK updates…"
+                  : busy === "installing"
+                    ? "Installing ServiceNow SDK…"
+                    : busy === "checking"
+                      ? "Checking global installation…"
+                      : status?.installed
+                        ? `Installed globally · v${status.version}`
+                        : status
+                          ? "Not installed globally"
+                          : "Installation status unavailable"}
             </p>
+            {status?.latestVersion && (
+              <p className="text-sm text-muted-foreground">
+                {status.updateAvailable
+                  ? `Update available · v${status.latestVersion}`
+                  : `Latest published · v${status.latestVersion}${status.installed ? " · No update needed" : ""}`}
+              </p>
+            )}
             {status && (
               <p className="break-all text-xs text-muted-foreground">
                 Global packages: {status.globalRoot}
@@ -101,6 +74,21 @@ export function ServiceNowSdkSettings() {
               {status && !status.installed && (
                 <Button size="sm" disabled={busy !== null} onClick={() => void run("installing")}>
                   {busy === "installing" ? "Installing…" : "Install SDK"}
+                </Button>
+              )}
+              {status?.updateAvailable && bridge?.updateServiceNowSdk && (
+                <Button size="sm" disabled={busy !== null} onClick={() => void run("updating")}>
+                  {busy === "updating" ? "Updating…" : `Update to v${status.latestVersion}`}
+                </Button>
+              )}
+              {status?.installed && bridge?.checkServiceNowSdkUpdates && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy !== null}
+                  onClick={() => void run("checkingUpdates")}
+                >
+                  Check for updates
                 </Button>
               )}
               <Button

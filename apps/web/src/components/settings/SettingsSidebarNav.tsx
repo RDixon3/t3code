@@ -12,6 +12,7 @@ import {
 import {
   ArchiveIcon,
   BlocksIcon,
+  BookOpenIcon,
   BotIcon,
   createLucideIcon,
   GitBranchIcon,
@@ -24,6 +25,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
+import { useOpenHelp } from "../../help/navigation";
 
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -103,6 +105,7 @@ function SettingsSectionIcon({ to }: { to: SettingsPath }) {
 
 export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const navigate = useNavigate();
+  const openHelp = useOpenHelp();
   const currentHash = useLocation({ select: (location) => location.hash });
   const { isMobile, setOpenMobile, open, setOpen } = useSidebar();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -335,6 +338,17 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                   </SidebarMenuItem>
                 );
               })}
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => {
+                    if (isMobile) setOpenMobile(false);
+                    openHelp();
+                  }}
+                >
+                  <BookOpenIcon />
+                  <span className="truncate">Help</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           )}
         </SidebarGroup>

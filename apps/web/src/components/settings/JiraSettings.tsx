@@ -3,6 +3,7 @@ import { jiraAgentStatus } from "../../state/jiraAgent";
 import type { JiraConnectionStatus } from "@t3tools/contracts";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../ui/button";
+import { HelpLink } from "../help/HelpLink";
 import { SettingsSection } from "./settingsLayout";
 
 export function JiraSettings() {
@@ -80,6 +81,7 @@ function JiraConnectionSettings() {
         Sign in through Atlassian using your organization’s SSO. This connection applies to all
         projects on this desktop.
       </p>
+      <HelpLink article="jira" label="Jira connection guide" />
       <p className="break-all text-xs text-muted-foreground">https://mcp.atlassian.com/v1/mcp</p>
       {!available ? (
         <p className="text-sm text-muted-foreground">Available in the desktop app.</p>

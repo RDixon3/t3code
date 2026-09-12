@@ -135,6 +135,9 @@ export const make = Effect.gen(function* () {
     const settingsClick = () => {
       runMenuEffect("open-settings", dispatchMenuAction("open-settings"));
     };
+    const helpClick = () => {
+      runMenuEffect("help.open", dispatchMenuAction("help.open"));
+    };
     const zoomClick = (direction: DesktopWindow.MainWindowZoomDirection) => () => {
       runMenuEffect(`zoom-${direction}`, zoomMainWindow(direction));
     };
@@ -215,6 +218,11 @@ export const make = Effect.gen(function* () {
       {
         role: "help",
         submenu: [
+          {
+            label: "CoCo Help",
+            click: helpClick,
+          },
+          { type: "separator" },
           {
             label: "Check for Updates...",
             click: checkForUpdatesClick,

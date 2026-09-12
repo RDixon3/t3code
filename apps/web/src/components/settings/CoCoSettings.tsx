@@ -1,11 +1,139 @@
-import type { EnvironmentId } from "@t3tools/contracts";
+import { CoCoContentRepository, type EnvironmentId } from "@t3tools/contracts";
 import { useAtomValue, useAtomRefresh } from "@effect/atom-react";
+import * as Schema from "effect/Schema";
+import { Input } from "../ui/input";
+import { serverEnvironment } from "../../state/server";
 import { useState } from "react";
 import { cocoLibrary, cocoSkillsAction } from "../../state/coco";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { usePrimaryEnvironment } from "../../state/environments";
 import { Button } from "../ui/button";
+import { HelpLink } from "../help/HelpLink";
 import { SettingsPageContainer, SettingsSection } from "./settingsLayout";
+const isContentRepository = Schema.is(CoCoContentRepository);
+
+function Repository({ environmentId }: { environmentId: EnvironmentId }) {
+  const settings = useAtomValue(serverEnvironment.settingsValueAtom(environmentId));
+  if (!settings)
+    return <p className="text-sm text-muted-foreground">Loading repository settings…</p>;
+  const saved = settings.cocoContentRepository ?? null;
+  return (
+    <RepositoryEditor
+      key={JSON.stringify([environmentId, saved])}
+      environmentId={environmentId}
+      saved={saved}
+    />
+  );
+}
+
+function RepositoryEditor({
+  environmentId,
+  saved,
+}: {
+  environmentId: EnvironmentId;
+  saved: CoCoContentRepository | null;
+}) {
+  const update = useAtomCommand(serverEnvironment.updateSettings, { reportFailure: false });
+  const [url, setUrl] = useState(saved?.url ?? "");
+  const [branch, setBranch] = useState(saved?.branch ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const save = async (clear = false) => {
+    if (busy) return;
+    const repository = clear ? null : { url: url.trim(), branch: branch.trim() };
+    if (repository && !isContentRepository(repository)) {
+      setError(
+        "Enter an HTTPS Azure DevOps repository URL without credentials or query parameters, and a valid branch name.",
+      );
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await update({
+        environmentId,
+        input: { patch: { cocoContentRepository: repository } },
+      });
+      if (result._tag === "Failure")
+        setError("Repository settings were not saved. Check the connection and try again.");
+    } catch {
+      setError("Repository settings were not saved. Check the connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-3 rounded-lg border p-4">
+      <h3 className="text-sm font-medium">Content repository</h3>
+      <p className="text-sm text-muted-foreground">
+        Define the Azure DevOps source for agents and skills on this environment.
+      </p>
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <label className="block space-y-1 text-sm">
+          <span>Repository URL</span>
+          <Input
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            disabled={busy}
+            placeholder="https://dev.azure.com/organization/project/_git/repository"
+            autoComplete="off"
+          />
+        </label>
+        <label className="block space-y-1 text-sm">
+          <span>Approved branch</span>
+          <Input
+            value={branch}
+            onChange={(event) => setBranch(event.target.value)}
+            disabled={busy}
+            placeholder="Branch name"
+            autoComplete="off"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={
+              busy ||
+              !url.trim() ||
+              !branch.trim() ||
+              (url.trim() === saved?.url && branch.trim() === saved.branch)
+            }
+          >
+            {busy ? "Saving…" : "Save repository"}
+          </Button>
+          {saved && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy}
+              onClick={() => void save(true)}
+            >
+              Clear repository
+            </Button>
+          )}
+        </div>
+      </form>
+      <p role="status" className="text-xs text-muted-foreground">
+        {saved ? "Repository saved. " : ""}Repository authentication and downloading updates are not
+        available yet. CoCo is using bundled agents and skills.
+      </p>
+    </div>
+  );
+}
+
 function Library({ environmentId }: { environmentId: EnvironmentId }) {
   const atom = cocoLibrary({ environmentId, input: {} });
   const result = useAtomValue(atom);
@@ -52,12 +180,14 @@ function Library({ environmentId }: { environmentId: EnvironmentId }) {
         <h3 className="text-sm font-medium">Native skills</h3>
         <p className="text-sm text-muted-foreground">
           Install CoCo skills into Codex, Claude and Cursor on this environment. They are also
-          available outside CoCo. Enabled installations update automatically when CoCo starts;
+          available outside CoCo. Enabled installations synchronize bundled skills when CoCo starts;
           existing chats follow each harness’s normal skill-loading behavior.
         </p>
         <p className="text-sm">
-          {library.enabled ? "Automatic updates enabled" : "Automatic updates disabled"} ·{" "}
-          {library.installed} installed copies
+          {library.enabled
+            ? "Bundled skill synchronization enabled"
+            : "Bundled skill synchronization disabled"}{" "}
+          · {library.installed} installed copies
         </p>
         {library.installed === 0 && (
           <p className="text-xs text-muted-foreground">
@@ -75,11 +205,11 @@ function Library({ environmentId }: { environmentId: EnvironmentId }) {
             disabled={busy}
             onClick={() => void act(library.enabled ? "disable" : "enable")}
           >
-            {library.enabled ? "Disable updates" : "Enable installation"}
+            {library.enabled ? "Disable synchronization" : "Enable installation"}
           </Button>
           {library.enabled && (
             <Button size="sm" variant="outline" disabled={busy} onClick={() => void act("retry")}>
-              Check for updates
+              Resync bundled skills
             </Button>
           )}
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => setConfirmRemove(true)}>
@@ -89,7 +219,7 @@ function Library({ environmentId }: { environmentId: EnvironmentId }) {
         {confirmRemove && (
           <div className="rounded-lg border p-3 text-sm">
             <p>
-              Remove installed CoCo skills and disable automatic updates? Other skills will remain.
+              Remove installed CoCo skills and disable synchronization? Other skills will remain.
             </p>
             <div className="mt-2 flex gap-2">
               <Button
@@ -128,8 +258,12 @@ export function CoCoSettings() {
   return (
     <SettingsPageContainer>
       <SettingsSection title="Agents & Skills" id="agents">
+        <HelpLink article="agents" label="Agent and skill guide" />
         {environment ? (
-          <Library environmentId={environment.environmentId} />
+          <div className="space-y-6">
+            <Repository environmentId={environment.environmentId} />
+            <Library environmentId={environment.environmentId} />
+          </div>
         ) : (
           <p>Connect an environment to manage its agents and skills.</p>
         )}

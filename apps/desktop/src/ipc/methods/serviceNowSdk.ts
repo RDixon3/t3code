@@ -1,5 +1,6 @@
 import {
   ServiceNowSdkStatusSchema,
+  ServiceNowSdkUpdateSchema,
   ServiceNowSdkProfileSchema,
   ServiceNowSdkAuthSessionSchema,
 } from "@t3tools/contracts";
@@ -18,6 +19,27 @@ export const checkServiceNowSdk = DesktopIpc.makeIpcMethod({
   result: ServiceNowSdkStatusSchema,
   handler: Effect.fn("desktop.ipc.checkServiceNowSdk")(function* () {
     return yield* (yield* serviceNowSdk).check;
+  }),
+});
+
+export const checkServiceNowSdkUpdates = DesktopIpc.makeIpcMethod({
+  channel: Channels.CHECK_SERVICENOW_SDK_UPDATES_CHANNEL,
+  payload: Schema.Void,
+  result: ServiceNowSdkStatusSchema,
+  handler: Effect.fn("desktop.ipc.checkServiceNowSdkUpdates")(function* () {
+    return yield* (yield* serviceNowSdk).checkUpdates;
+  }),
+});
+export const updateServiceNowSdk = DesktopIpc.makeIpcMethod({
+  channel: Channels.UPDATE_SERVICENOW_SDK_CHANNEL,
+  payload: ServiceNowSdkUpdateSchema,
+  result: ServiceNowSdkStatusSchema,
+  handler: Effect.fn("desktop.ipc.updateServiceNowSdk")(function* (input) {
+    if (sdkAuth.isActive())
+      return yield* new ServiceNowSdkError({
+        message: "Finish or cancel SDK sign-in before updating.",
+      });
+    return yield* (yield* serviceNowSdk).update(input);
   }),
 });
 

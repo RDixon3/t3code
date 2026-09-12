@@ -6,6 +6,8 @@ import { installServiceNowIpc } from "./methods/serviceNowConnection.ts";
 import {
   checkServiceNowSdk,
   installServiceNowSdk,
+  checkServiceNowSdkUpdates,
+  updateServiceNowSdk,
   listServiceNowSdkProfiles,
   deleteServiceNowSdkProfile,
   addServiceNowSdkProfile,
@@ -90,6 +92,8 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(addBasicServiceNowSdkProfile);
   yield* Effect.addFinalizer(() => Effect.sync(() => sdkAuth.cancelAll()));
   yield* ipc.handle(installServiceNowSdk);
+  yield* ipc.handle(checkServiceNowSdkUpdates);
+  yield* ipc.handle(updateServiceNowSdk);
   yield* PreviewIpc.installPreviewEventForwarding();
 
   yield* ipc.handle(AppActivationIpc.setReady);

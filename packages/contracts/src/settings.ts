@@ -943,7 +943,45 @@ export const CoCoProjectContext = Schema.Struct({
 });
 export type CoCoProjectContext = typeof CoCoProjectContext.Type;
 
+export const CoCoContentRepository = Schema.Struct({
+  url: Schema.String.check(
+    Schema.makeFilter((value) => {
+      try {
+        const url = new URL(value);
+        return (
+          url.protocol === "https:" &&
+          !url.username &&
+          !url.password &&
+          !url.search &&
+          !url.hash &&
+          /\/_git\/[^/]+\/?$/.test(url.pathname)
+        );
+      } catch {
+        return false;
+      }
+    }),
+  ),
+  branch: Schema.NonEmptyString.check(
+    Schema.makeFilter(
+      (value) =>
+        value === value.trim() &&
+        !/[\s~^:?*[\\]/.test(value) &&
+        !value.includes("..") &&
+        !value.includes("@{") &&
+        !value.startsWith("/") &&
+        !value.endsWith("/") &&
+        !value.endsWith(".") &&
+        !value.endsWith(".lock") &&
+        !value.includes("//"),
+    ),
+  ),
+});
+export type CoCoContentRepository = typeof CoCoContentRepository.Type;
+
 export const ServerSettings = Schema.Struct({
+  cocoContentRepository: Schema.NullOr(CoCoContentRepository).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   cocoSkillsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   cocoProjectContexts: Schema.Record(ProjectId, CoCoProjectContext).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
@@ -1258,6 +1296,7 @@ export const ServerSettingsPatch = Schema.Struct({
   projectAutoPullOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
   ),
+  cocoContentRepository: Schema.optionalKey(Schema.NullOr(CoCoContentRepository)),
   cocoSkillsEnabled: Schema.optionalKey(Schema.Boolean),
   cocoProjectContexts: Schema.optionalKey(Schema.Record(ProjectId, CoCoProjectContext)),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),

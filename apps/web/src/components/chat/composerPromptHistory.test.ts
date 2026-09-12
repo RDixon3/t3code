@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import { appendElementContextsToPrompt } from "../../lib/elementContext";
+import { appendContextItemsToPrompt, type ContextItem } from "../../lib/contextItem";
 import {
   appendTerminalContextsToPrompt,
   materializeInlineTerminalContextPrompt,
@@ -31,6 +32,62 @@ function forward(position: ComposerPromptHistoryPosition | null, currentPrompt: 
 }
 
 describe("recallableComposerPrompt", () => {
+  const contextItem: ContextItem = {
+    source: "jira",
+    sourceLabel: "Jira",
+    sourceScope: "cloud-one",
+    recordId: "OPS-42",
+    title: "Confirm release approval",
+    kind: "risk",
+    content: "Status: In Progress\nAssignee: Jordan",
+  };
+
+  it("recalls text without the selected record snapshot", () => {
+    expect(
+      recallableComposerPrompt(appendContextItemsToPrompt("Review this risk", [contextItem])),
+    ).toBe("Review this risk");
+    expect(recallableComposerPrompt(appendContextItemsToPrompt("", [contextItem]))).toBe("");
+  });
+
+  it("strips record snapshots and terminal/review context in either suffix order", () => {
+    const terminal = {
+      terminalId: "default",
+      terminalLabel: "Terminal 1",
+      lineStart: 12,
+      lineEnd: 13,
+      text: "build failed",
+    };
+    const comment = buildFileReviewComment({
+      id: "comment-1",
+      filePath: "src/app.ts",
+      startLine: 1,
+      endLine: 1,
+      text: "Check this against the issue.",
+      contents: "line",
+    });
+    const terminalFirst = appendTerminalContextsToPrompt("Review this @terminal-1:12-13", [
+      terminal,
+    ]);
+    const contextLast = appendContextItemsToPrompt(
+      appendReviewCommentsToPrompt(terminalFirst, [comment]),
+      [contextItem],
+    );
+    const contextFirst = appendContextItemsToPrompt("Review this @terminal-1:12-13", [contextItem]);
+    const reviewLast = appendReviewCommentsToPrompt(
+      appendTerminalContextsToPrompt(contextFirst, [terminal]),
+      [comment],
+    );
+    expect(recallableComposerPrompt(contextLast)).toBe("Review this");
+    expect(recallableComposerPrompt(reviewLast)).toBe("Review this");
+  });
+
+  it("retains ordinary user text around a context-like block", () => {
+    const typed = `${appendContextItemsToPrompt("Before", [contextItem])}\n\nAfter`;
+    expect(recallableComposerPrompt(typed)).toBe(typed);
+    const malformed = 'Review this\n\n<context_items version="1">\nnot JSON\n</context_items>';
+    expect(recallableComposerPrompt(malformed)).toBe(malformed);
+  });
+
   it("strips send-time context blocks and the ultrathink prefix", () => {
     const withTerminal = appendTerminalContextsToPrompt("Investigate this", [
       {

@@ -12,6 +12,8 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
+import type { ContextItem } from "../../lib/contextItem";
+import { jiraContextItem } from "./jiraContextItem";
 import {
   Menu,
   MenuTrigger,
@@ -30,14 +32,14 @@ export function JiraIssueCard({
   busy,
   onTransition,
   compact = false,
-  onAddToChat,
+  onAddContextItem,
 }: {
   issue: JiraIssue;
   siteUrl: string;
   cloudId: string;
   busy: boolean;
   compact?: boolean;
-  onAddToChat?: ((text: string) => void) | undefined;
+  onAddContextItem?: ((item: ContextItem) => void) | undefined;
   onTransition: (issue: JiraIssue, transition: JiraTransition) => Promise<void>;
 }) {
   const [transitions, setTransitions] = useState<ReadonlyArray<JiraTransition>>([]);
@@ -61,10 +63,7 @@ export function JiraIssueCard({
           ? "text-green-500"
           : "text-blue-500";
   const url = `${siteUrl}/browse/${encodeURIComponent(issue.key)}`;
-  const addToChat = () =>
-    onAddToChat?.(
-      `Jira issue ${issue.key}: ${issue.summary}\n${url}\nStatus: ${issue.status}. Assignee: ${issue.assignee ?? "Unassigned"}.`,
-    );
+  const addToChat = () => onAddContextItem?.(jiraContextItem(issue, cloudId, siteUrl));
   const load = async () => {
     if (!window.desktopBridge?.getJiraTransitions) return;
     setLoading(true);
@@ -154,7 +153,7 @@ export function JiraIssueCard({
         <EllipsisIcon className="size-4" />
       </MenuTrigger>
       <MenuPopup align="end" className="w-56">
-        {onAddToChat && (
+        {onAddContextItem && (
           <MenuItem onClick={addToChat}>
             <MessageSquarePlusIcon />
             Add to chat draft
@@ -218,7 +217,7 @@ export function JiraIssueCard({
           </MenuPopup>
         </Menu>
         <div className="max-w-36">{assignee}</div>
-        {onAddToChat && (
+        {onAddContextItem && (
           <Button
             size="sm"
             variant="outline"

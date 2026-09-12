@@ -183,6 +183,8 @@ import {
 } from "./userMessageTerminalContexts";
 import { deriveAgentSpawnSummary } from "./agentSpawnSummary";
 import { SkillInlineText } from "./SkillInlineText";
+import { ContextItemChips } from "./ContextItemChips";
+import { extractTrailingContextItems } from "../../lib/contextItem";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
 import {
   buildReviewCommentRenderablePatch,
@@ -1405,7 +1407,8 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
   const unknownAttachments = (row.message.attachments ?? []).filter(
     (attachment) => !isImageAttachment(attachment) && !isFileAttachment(attachment),
   );
-  const displayedUserMessage = deriveDisplayedUserMessageState(row.message.text);
+  const contextItems = extractTrailingContextItems(row.message.text);
+  const displayedUserMessage = deriveDisplayedUserMessageState(contextItems.promptText);
   const terminalContexts = displayedUserMessage.contexts;
   const previewAnnotations: ParsedPreviewAnnotation[] = [];
   let visibleText = displayedUserMessage.visibleText;
@@ -1574,6 +1577,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
             ))}
           </div>
         ) : null}
+        <ContextItemChips items={contextItems.items} className="mb-2" />
         <CollapsibleUserMessageBody
           text={elementContextState.promptText}
           terminalContexts={terminalContexts}
@@ -1595,9 +1599,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
             {typeof revertTurnCount === "number" && (
               <RevertUserMessageButton turnCount={revertTurnCount} />
             )}
-            {displayedUserMessage.copyText && (
-              <MessageCopyButton text={displayedUserMessage.copyText} variant="ghost" />
-            )}
+            {row.message.text && <MessageCopyButton text={row.message.text} variant="ghost" />}
           </div>
         </div>
       </div>

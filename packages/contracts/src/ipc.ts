@@ -1226,6 +1226,12 @@ export const ServiceNowSdkStatusSchema = Schema.Struct({
   installed: Schema.Boolean,
   version: Schema.NullOr(Schema.String),
   globalRoot: Schema.String,
+  latestVersion: Schema.optional(Schema.String),
+  updateAvailable: Schema.optional(Schema.Boolean),
+});
+export const ServiceNowSdkUpdateSchema = Schema.Struct({
+  version: Schema.String,
+  globalRoot: Schema.String,
 });
 export type ServiceNowSdkStatus = typeof ServiceNowSdkStatusSchema.Type;
 
@@ -1352,6 +1358,10 @@ export interface DesktopBridge {
     input: ServiceNowSdkProfile & { username: string; password: string },
   ) => Promise<ServiceNowSdkProfile>;
   installServiceNowSdk?: () => Promise<ServiceNowSdkStatus>;
+  checkServiceNowSdkUpdates?: () => Promise<ServiceNowSdkStatus>;
+  updateServiceNowSdk?: (
+    input: typeof ServiceNowSdkUpdateSchema.Type,
+  ) => Promise<ServiceNowSdkStatus>;
   getAppBranding: () => DesktopAppBranding | null;
   /** The desktop client's OS platform, read from Electron's preload process. */
   getClientPlatform?: () => string;

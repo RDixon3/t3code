@@ -40,6 +40,7 @@ import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import {
   ArrowLeftIcon,
+  BookOpenIcon,
   CornerLeftUpIcon,
   FileSearchIcon,
   FolderIcon,
@@ -66,6 +67,7 @@ import {
 import { useAtomValue } from "@effect/atom-react";
 
 import { isDesktopLocalConnectionTarget } from "../connection/desktopLocal";
+import { useOpenHelp } from "../help/navigation";
 import { useDesktopLocalBootstraps } from "../connection/useDesktopLocalBootstraps";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
@@ -568,6 +570,7 @@ function OpenCommandPaletteDialog(props: {
   readonly clearOpenIntent: () => void;
 }) {
   const navigate = useNavigate();
+  const openHelp = useOpenHelp();
   const pathname = useLocation({ select: (location) => location.pathname });
   const { clearOpenIntent, openIntent, openOverlayMode, setOpen } = props;
   const [query, setQuery] = useState("");
@@ -1676,6 +1679,17 @@ function OpenCommandPaletteDialog(props: {
         themeHalves,
         initialAppearance: resolvedTheme,
       });
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:help",
+    searchTerms: ["help", "documentation", "guides", "coco", "troubleshooting"],
+    title: "Open Help",
+    icon: <BookOpenIcon className={ITEM_ICON_CLASS} />,
+    run: async () => {
+      openHelp();
     },
   });
 
