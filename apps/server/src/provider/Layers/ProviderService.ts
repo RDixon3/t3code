@@ -11,6 +11,7 @@
  */
 import {
   EventId,
+  normalizeRuntimeMode,
   MessageId,
   ModelSelection,
   NonNegativeInt,
@@ -1210,7 +1211,7 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
             ? { agentInstructions: input.binding.runtimePayload.agentInstructions }
             : {}),
           ...(hasResumeCursor ? { resumeCursor: input.binding.resumeCursor } : {}),
-          runtimeMode: input.binding.runtimeMode ?? "full-access",
+          runtimeMode: normalizeRuntimeMode(input.binding.runtimeMode),
         })
         .pipe(Effect.onError(() => clearMcpSession(input.binding.threadId)));
       if (resumed.provider !== adapter.provider) {
@@ -1359,11 +1360,12 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
           ...parsed,
           threadId,
           provider: resolvedProvider,
+          runtimeMode: normalizeRuntimeMode(parsed.runtimeMode),
         };
         if (!instanceInfo.enabled) {
           return yield* toValidationError(
             "ProviderService.startSession",
-            `Provider instance '${resolvedInstanceId}' is disabled in T3 Code settings.`,
+            `Provider instance '${resolvedInstanceId}' is disabled in CoCo settings.`,
           );
         }
         const persistedBinding = Option.getOrUndefined(yield* directory.getBinding(threadId));

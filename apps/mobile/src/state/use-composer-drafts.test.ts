@@ -235,6 +235,30 @@ describe("mobile composer drafts", () => {
     });
   });
 
+  it("restores Full Access drafts as Auto while preserving content and supervised selections", () => {
+    const fullAccessDraft = {
+      text: "Keep this prompt",
+      attachments: [],
+      runtimeMode: "full-access",
+    };
+    const supervisedDraft = { ...fullAccessDraft, runtimeMode: "approval-required" };
+    const restored = decodePersistedComposerState({
+      schemaVersion: 1,
+      drafts: { "env:legacy": fullAccessDraft, "env:supervised": supervisedDraft },
+      signedOutDrafts: {
+        account: { drafts: { "env:legacy": fullAccessDraft }, queuedMessages: [] },
+      },
+    });
+    expect(restored.drafts).toEqual({
+      "env:legacy": { ...fullAccessDraft, runtimeMode: "auto" },
+      "env:supervised": supervisedDraft,
+    });
+    expect(restored.cloudDrafts.signedOut.account?.drafts["env:legacy"]).toEqual({
+      ...fullAccessDraft,
+      runtimeMode: "auto",
+    });
+  });
+
   it("releases videos rejected by the live draft limit and keeps accepted files", async () => {
     const outboxLoad = vi.spyOn(threadOutboxManager, "load").mockResolvedValue(true);
     onTestFinished(() => outboxLoad.mockRestore());

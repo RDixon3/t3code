@@ -6,6 +6,7 @@ import {
   ProjectId as ProjectIdSchema,
   ProviderInteractionMode as ProviderInteractionModeSchema,
   RuntimeMode as RuntimeModeSchema,
+  normalizeRuntimeMode,
   type EnvironmentId,
   type ModelSelection,
   type ProjectId,
@@ -195,6 +196,12 @@ function normalizeDraft(draft: ComposerDraft | undefined): ComposerDraft {
   };
 }
 
+function normalizeDraftRuntimeMode(draft: ComposerDraft): ComposerDraft {
+  return draft.runtimeMode === "full-access"
+    ? { ...draft, runtimeMode: normalizeRuntimeMode(draft.runtimeMode) }
+    : draft;
+}
+
 export function getComposerDraftSnapshot(draftKey: string): ComposerDraft {
   return normalizeDraft(appAtomRegistry.get(composerDraftsAtom)[draftKey]);
 }
@@ -231,7 +238,7 @@ function withComposerDraft(
     delete next[draftKey];
     return next;
   }
-  return { ...current, [draftKey]: draft };
+  return { ...current, [draftKey]: normalizeDraftRuntimeMode(draft) };
 }
 
 export { isNewTaskDraftKey, newTaskDraftKey } from "./new-task-draft-key";
@@ -297,7 +304,7 @@ export function decodePersistedComposerState(value: unknown): {
               draft.interactionMode === undefined &&
               draft.workspaceSelection === undefined
               ? { ...draft, modelSelection: undefined }
-              : draft,
+              : normalizeDraftRuntimeMode(draft),
             now,
           ),
         )
@@ -317,7 +324,7 @@ export function decodePersistedComposerState(value: unknown): {
             // without another decode, so they get the same key migration.
             drafts: Object.fromEntries(
               Object.entries(saved.drafts).map(([key, draft]) =>
-                migrateLegacyNewTaskDraft(key, draft, now),
+                migrateLegacyNewTaskDraft(key, normalizeDraftRuntimeMode(draft), now),
               ),
             ),
             queuedMessages: saved.queuedMessages.map(decodeQueuedThreadMessage),

@@ -10,6 +10,7 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderSetupError,
+  RuntimeMode,
 } from "@t3tools/contracts";
 import { createModelSelection } from "@t3tools/shared/model";
 import {
@@ -32,6 +33,7 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import * as Option from "effect/Option";
 import * as PubSub from "effect/PubSub";
 import * as Scope from "effect/Scope";
+import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 import { it as effectIt } from "@effect/vitest";
@@ -71,6 +73,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Clock from "effect/Clock";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import { ServerActivation } from "../../serverActivation.ts";
+const isRuntimeMode = Schema.is(RuntimeMode);
 import { VcsStatusBroadcaster } from "../../vcs/VcsStatusBroadcaster.ts";
 import * as GitWorkflowService from "../../git/GitWorkflowService.ts";
 
@@ -239,9 +242,9 @@ describe("ProviderCommandReactor", () => {
           typeof input === "object" &&
           input !== null &&
           "runtimeMode" in input &&
-          (input.runtimeMode === "approval-required" || input.runtimeMode === "full-access")
+          isRuntimeMode(input.runtimeMode)
             ? input.runtimeMode
-            : "full-access",
+            : "auto",
         ...(typeof input === "object" &&
         input !== null &&
         "cwd" in input &&
@@ -259,6 +262,10 @@ describe("ProviderCommandReactor", () => {
       return (startSessionEffect?.(session) ?? Effect.succeed(session)).pipe(
         Effect.tap((startedSession) =>
           Effect.sync(() => {
+            const existing = runtimeSessions.findIndex(
+              (session) => session.threadId === startedSession.threadId,
+            );
+            if (existing >= 0) runtimeSessions.splice(existing, 1);
             runtimeSessions.push(startedSession);
           }),
         ),
@@ -490,7 +497,8 @@ describe("ProviderCommandReactor", () => {
     const engine = await runtime.runPromise(Effect.service(OrchestrationEngineService));
     const snapshotQuery = await runtime.runPromise(Effect.service(ProjectionSnapshotQuery));
     const reactor = await runtime.runPromise(Effect.service(ProviderCommandReactor));
-    const runEffect = <A, E>(effect: Effect.Effect<A, E>) => runtime!.runPromise(effect);
+    const runEffect = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
+      runtime!.runPromise(effect);
 
     await Effect.runPromise(
       engine.dispatch({
@@ -3091,6 +3099,139 @@ describe("ProviderCommandReactor", () => {
     });
   });
 
+  effectIt.effect("queues stale-client Full Access requests as Auto", () =>
+    Effect.gen(function* () {
+      const activation = yield* Deferred.make<void>();
+      const sent = yield* Deferred.make<void>();
+      const harness = yield* Effect.promise(() =>
+        createHarness({
+          serverActivation: Deferred.await(activation),
+          sendTurnEffect: () => Deferred.succeed(sent, undefined).pipe(Effect.asVoid),
+        }),
+      );
+      const threadId = ThreadId.make("thread-1");
+      const createdAt = "2026-01-01T00:00:00.000Z";
+      yield* harness.engine.dispatch({
+        type: "thread.runtime-mode.set",
+        commandId: CommandId.make("stale-client-full-access"),
+        threadId,
+        runtimeMode: "full-access",
+        createdAt,
+      });
+      yield* harness.engine.dispatch({
+        type: "thread.turn.start",
+        commandId: CommandId.make("stale-client-queued-turn"),
+        threadId,
+        runtimeMode: "full-access",
+        interactionMode: "default",
+        message: {
+          messageId: MessageId.make("queued-auto-message"),
+          role: "user",
+          text: "Continue",
+          attachments: [],
+        },
+        createdAt,
+      });
+      const events = yield* Stream.runCollect(harness.engine.readEvents(0));
+      expect(events.find((event) => event.type === "thread.turn-start-requested")).toMatchObject({
+        payload: { runtimeMode: "auto" },
+      });
+      expect(harness.sendTurn).not.toHaveBeenCalled();
+      yield* Deferred.succeed(activation, undefined);
+      yield* Deferred.await(sent);
+      yield* Effect.promise(() => harness.drain());
+      expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({ runtimeMode: "auto" });
+    }),
+  );
+
+  for (const provider of ["codex", "claudeAgent", "cursor"] as const) {
+    effectIt.effect(
+      `resumes a saved Full Access ${provider} chat in Auto without repeating the restart`,
+      () =>
+        Effect.gen(function* () {
+          const sent = [yield* Deferred.make<void>(), yield* Deferred.make<void>()];
+          let turnIndex = 0;
+          const harness = yield* Effect.promise(() =>
+            createHarness({
+              threadModelSelection: {
+                instanceId: ProviderInstanceId.make(provider),
+                model: "test-model",
+              },
+              sendTurnEffect: () =>
+                Deferred.succeed(sent[turnIndex++]!, undefined).pipe(Effect.asVoid),
+            }),
+          );
+          const threadId = ThreadId.make("thread-1");
+          const now = "2026-01-01T00:00:00.000Z";
+          // Simulate a thread and native session saved before Full Access was removed.
+          yield* Effect.promise(() =>
+            harness.runEffect(
+              Effect.gen(function* () {
+                const sql = yield* SqlClient.SqlClient;
+                yield* sql`UPDATE projection_threads SET runtime_mode = 'full-access' WHERE thread_id = ${threadId}`;
+              }),
+            ),
+          );
+          harness.runtimeSessions.push({
+            threadId,
+            provider: ProviderDriverKind.make(provider),
+            providerInstanceId: ProviderInstanceId.make(provider),
+            model: "test-model",
+            cwd: "/tmp/provider-project",
+            status: "ready",
+            runtimeMode: "full-access",
+            resumeCursor: { opaque: "saved-conversation" },
+            createdAt: now,
+            updatedAt: now,
+          });
+          yield* harness.engine.dispatch({
+            type: "thread.session.set",
+            commandId: CommandId.make("cmd-saved-full-access-session"),
+            threadId,
+            session: {
+              threadId,
+              providerName: ProviderDriverKind.make(provider),
+              providerInstanceId: ProviderInstanceId.make(provider),
+              status: "ready",
+              runtimeMode: "full-access",
+              activeTurnId: null,
+              lastError: null,
+              updatedAt: now,
+            },
+            createdAt: now,
+          });
+          for (const index of [0, 1]) {
+            yield* harness.engine.dispatch({
+              type: "thread.turn.start",
+              commandId: CommandId.make(`cmd-resume-full-access-${index}`),
+              threadId,
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              message: {
+                messageId: MessageId.make(`message-resume-full-access-${index}`),
+                role: "user",
+                text: `Continue ${index}`,
+                attachments: [],
+              },
+              createdAt: now,
+            });
+            yield* Deferred.await(sent[index]!);
+            yield* Effect.promise(() => harness.drain());
+          }
+          expect(harness.startSession).toHaveBeenCalledTimes(1);
+          expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({
+            runtimeMode: "auto",
+            resumeCursor: { opaque: "saved-conversation" },
+          });
+          expect(harness.sendTurn).toHaveBeenCalledTimes(2);
+          const thread = (yield* Effect.promise(() => harness.readModel())).threads.find(
+            (entry) => entry.id === threadId,
+          );
+          expect(thread?.session?.runtimeMode).toBe("auto");
+        }),
+    );
+  }
+
   it("restarts the provider session when runtime mode is updated on the thread", async () => {
     const harness = await createHarness();
     const now = "2026-01-01T00:00:00.000Z";
@@ -3124,6 +3265,8 @@ describe("ProviderCommandReactor", () => {
 
     await waitFor(() => harness.startSession.mock.calls.length === 1);
     await waitFor(() => harness.sendTurn.mock.calls.length === 1);
+    expect(harness.startSession.mock.calls[0]?.[1]).toMatchObject({ runtimeMode: "auto" });
+    expect((await harness.readModel()).threads[0]?.runtimeMode).toBe("auto");
 
     await Effect.runPromise(
       harness.engine.dispatch({
@@ -3286,7 +3429,7 @@ describe("ProviderCommandReactor", () => {
     const readModel = await harness.readModel();
     const thread = readModel.threads.find((entry) => entry.id === ThreadId.make("thread-1"));
     expect(thread?.session?.threadId).toBe("thread-1");
-    expect(thread?.session?.runtimeMode).toBe("full-access");
+    expect(thread?.session?.runtimeMode).toBe("auto");
   });
 
   it("rejects provider changes after a thread is already bound to a session provider", async () => {

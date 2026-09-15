@@ -23,16 +23,16 @@ export async function listenForOAuth(
       return;
     }
     if (url.searchParams.get("state") !== state) {
-      response.writeHead(400).end("Invalid sign-in state. Return to T3 Code and try again.");
+      response.writeHead(400).end("Invalid sign-in state. Return to CoCo and try again.");
       return;
     }
     const authorizationCode = url.searchParams.get("code");
     if (url.searchParams.has("error") || !authorizationCode) {
-      response.writeHead(400).end("Sign-in was not completed. Return to T3 Code.");
+      response.writeHead(400).end("Sign-in was not completed. Return to CoCo.");
       rejectCode(new Error(`${options.name} sign-in was declined or incomplete.`));
       return;
     }
-    response.end("Sign-in received. You can return to T3 Code.");
+    response.end("Sign-in received. You can return to CoCo.");
     resolveCode(authorizationCode);
   });
   await new Promise<void>((resolve, reject) => {

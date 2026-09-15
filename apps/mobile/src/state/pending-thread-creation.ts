@@ -1,6 +1,6 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { OrchestrationThread } from "@t3tools/contracts";
-import { DEFAULT_PROVIDER_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "@t3tools/contracts";
+import { DEFAULT_PROVIDER_INTERACTION_MODE, normalizeRuntimeMode } from "@t3tools/contracts";
 import { Atom } from "effect/unstable/reactivity";
 
 import { deriveThreadTitleFromPrompt } from "../lib/projectThreadStartTurn";
@@ -141,7 +141,7 @@ export function pendingThreadCreationShell(
     projectId: creation.projectId,
     title: deriveThreadTitleFromPrompt(message.text),
     modelSelection: message.modelSelection,
-    runtimeMode: message.runtimeMode ?? DEFAULT_RUNTIME_MODE,
+    runtimeMode: normalizeRuntimeMode(message.runtimeMode),
     interactionMode: message.interactionMode ?? DEFAULT_PROVIDER_INTERACTION_MODE,
     branch: creation.branch,
     worktreePath: creation.workspaceMode === "worktree" ? null : creation.worktreePath,

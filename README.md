@@ -1,121 +1,37 @@
-# T3 Code
+# CoCo
 
-T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
+CoCo brings pursuit, project management, and development work into one desktop app. It connects your projects, Jira work, and coding agents while preserving the familiar chat workflow.
 
-Works with your subscriptions on Claude Code, Codex, Cursor, Grok Build, OpenCode, and Google Antigravity. If they're set up on your computer, T3 Code can control them.
+- **Pursue:** coming soon.
+- **Manage:** Jira project work, risks, and an executive summary alongside chat.
+- **Build:** development chat using Codex, Claude Code, or Cursor, with project context and ServiceNow SDK profiles.
 
-## "Wait, what are you selling me?"
+## Install
 
-Nothing. We built T3 Code because we wanted the best possible development experience with agents. We were inspired by existing solutions like the Codex desktop app, Conductor, Claude Desktop and Cursor Glass, but none met our bar.
+Download your team's approved version from [CoCo releases](https://github.com/RDixon3/t3code/releases). Sign in to GitHub if required.
 
-We wanted something performant, remote-ready, and truly open. If we ever go the wrong direction, we want you to have everything you need to fork and build the editor that you want.
+- **Apple Silicon Mac:** download the DMG and drag CoCo into Applications.
+- **Windows x64:** download and run the EXE installer.
 
-## Installation
+The Mac app is ad-hoc signed without notarization; the Windows installer is unsigned. Follow your organization's approved installation process. Updates are installed manually from the next CoCo release.
 
-> [!WARNING]
-> T3 Code currently supports Codex, Claude, Cursor, Grok Build, OpenCode, and Antigravity. Install and authenticate at least one provider before use:
->
-> - Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
-> - Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
-> - Cursor: install [Cursor CLI](https://cursor.com/cli) and run `agent login`
-> - Grok Build: install [Grok Build CLI](https://x.ai/cli) and run `grok login`
-> - OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
-> - Antigravity: enable it in Settings, then use **Install Antigravity** and **Sign in with Google**. No CLI is required.
+Install and authenticate your chosen provider separately. Start with [Install and first run](docs/user/coco/getting-started.md).
 
-### Try it out (install-free)
+## Help
 
-The easiest way to test T3 Code is to run the server in your terminal (requires Node.js 22.16+, 23.11+, or 24.10+):
+Open **Help** from the app's Settings menu, or read:
 
-```bash
-npx t3@latest
-```
+- [Build and chat](docs/user/coco/build.md)
+- [Projects and context](docs/user/coco/projects.md)
+- [Providers](docs/user/coco/providers.md)
+- [Connections](docs/user/coco/connections.md)
+- [Updates](docs/user/coco/updates.md)
+- [Troubleshooting](docs/user/coco/troubleshooting.md)
 
-This will launch T3 Code's backend on your machine as well as the local web app to control your agents.
+## Develop
 
-Tip: Use `npx t3@latest --help` for the full CLI reference.
+See [Development setup](docs/user/coco/development.md) for prerequisites, source setup, and launching the desktop or development web app. Use this fork's source or CoCo releases; upstream installers do not include CoCo's features.
 
-### Desktop app
+## Upstream
 
-Install the latest version of the desktop app from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), or from your favorite package registry:
-
-#### Windows (`winget`)
-
-```bash
-winget install T3Tools.T3Code
-```
-
-#### macOS (Homebrew)
-
-```bash
-brew install --cask t3-code
-```
-
-#### Arch Linux (AUR)
-
-Stable:
-
-```bash
-yay -S t3code-bin
-```
-
-Nightly:
-
-```bash
-yay -S t3code-nightly-bin
-```
-
-The AUR packaging is maintained in this repository under [`packaging/aur`](./packaging/aur).
-
-## Some notes
-
-We are very very early in this project. Expect bugs.
-
-We are (mostly) not accepting contributions yet. Small fixes may be considered. Big features will not be.
-
-## Documentation
-
-Full docs live in [docs/](./docs). There's no docs site yet.
-
-- [Install and first run](./docs/user/install.md)
-- [Permission modes](./docs/user/permission-modes.md)
-- [Keyboard shortcuts](./docs/user/keybindings.md)
-- [Project settings](./docs/user/project-settings.md)
-- [Remote access from a phone or another machine](./docs/user/remote-access.md)
-- [Keeping app and server in sync](./docs/user/updating.md)
-- [Source control integrations](./docs/user/source-control.md)
-- Multiple accounts: [Codex](./docs/user/providers-codex.md) · [Claude](./docs/user/providers-claude.md)
-- [Run T3 Code as a background service](./docs/user/background-service.md)
-
-Building from source? Start at [docs/internals/overview.md](./docs/internals/overview.md).
-
-## If you REALLY want to contribute still.... read this first
-
-### Install `vp`
-
-T3 Code uses Vite+ so you'll need to install the global `vp` command-line tool.
-
-#### macOS / Linux
-
-```bash
-curl -fsSL https://vite.plus | bash
-```
-
-#### Windows
-
-```bash
-irm https://vite.plus/ps1 | iex
-```
-
-Checkout their getting started guide for more information: https://viteplus.dev/guide/
-
-### Install dependencies
-
-```bash
-vp i
-```
-
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before reporting a bug or opening a PR.
-
-Have a feature request? Start an [Ideas discussion](https://github.com/pingdotgg/t3code/discussions/categories/ideas).
-
-Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
+CoCo is a fork of [T3 Code](https://github.com/pingdotgg/t3code). Internal package names and configuration identifiers retain upstream compatibility. See [LICENSE](LICENSE) for copyright and license terms.

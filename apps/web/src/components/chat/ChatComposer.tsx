@@ -22,6 +22,7 @@ import type {
 } from "@t3tools/contracts";
 import {
   ProviderDriverKind,
+  normalizeRuntimeMode,
   ProviderInstanceId,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
@@ -855,7 +856,6 @@ import {
   PlayIcon,
   type LucideIcon,
   LockIcon,
-  LockOpenIcon,
   PenLineIcon,
   SparklesIcon,
   XIcon,
@@ -902,7 +902,7 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
 const WORKSPACE_SNAPSHOT_RETRY_COOLDOWN_MS = 10_000;
 
 const runtimeModeConfig: Record<
-  RuntimeMode,
+  ReturnType<typeof normalizeRuntimeMode>,
   { label: string; description: string; icon: LucideIcon }
 > = {
   "approval-required": {
@@ -920,14 +920,9 @@ const runtimeModeConfig: Record<
     description: "Supported providers approve routine actions; others still ask.",
     icon: SparklesIcon,
   },
-  "full-access": {
-    label: "Full access",
-    description: "Allow commands and edits without prompts.",
-    icon: LockOpenIcon,
-  },
 };
 
-const runtimeModeOptions = Object.keys(runtimeModeConfig) as RuntimeMode[];
+const runtimeModeOptions = Object.keys(runtimeModeConfig) as Array<keyof typeof runtimeModeConfig>;
 const extendReplacementRangeForTrailingSpace = (
   text: string,
   rangeEnd: number,
@@ -1011,7 +1006,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
 }) {
   const size = props.size ?? "sm";
   const [open, setOpen] = useComposerMenuState(props.hidden);
-  const runtimeModeOption = runtimeModeConfig[props.runtimeMode];
+  const runtimeModeOption = runtimeModeConfig[normalizeRuntimeMode(props.runtimeMode)];
   const RuntimeModeIcon = runtimeModeOption.icon;
   const interactionModeTooltip =
     props.interactionMode === "plan"
@@ -1070,7 +1065,7 @@ const ComposerFooterModeControls = memo(function ComposerFooterModeControls(prop
         <Select
           open={open}
           onOpenChange={setOpen}
-          value={props.runtimeMode}
+          value={normalizeRuntimeMode(props.runtimeMode)}
           onValueChange={(value) => props.onRuntimeModeChange(value!)}
         >
           <TooltipTrigger

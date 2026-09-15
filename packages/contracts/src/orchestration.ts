@@ -125,7 +125,14 @@ export const RuntimeMode = Schema.Literals([
   "full-access",
 ]);
 export type RuntimeMode = typeof RuntimeMode.Type;
-export const DEFAULT_RUNTIME_MODE: RuntimeMode = "full-access";
+export const DEFAULT_RUNTIME_MODE: RuntimeMode = "auto";
+
+// Keep legacy values readable in saved history, but never select or run Full Access.
+export function normalizeRuntimeMode(
+  mode: RuntimeMode | null | undefined,
+): Exclude<RuntimeMode, "full-access"> {
+  return mode === "full-access" || mode == null ? "auto" : mode;
+}
 export const ProviderInteractionMode = Schema.Literals(["default", "plan"]);
 export type ProviderInteractionMode = typeof ProviderInteractionMode.Type;
 export const DEFAULT_PROVIDER_INTERACTION_MODE: ProviderInteractionMode = "default";

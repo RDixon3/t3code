@@ -13,6 +13,7 @@ import {
   ProjectId,
   ProviderInteractionMode,
   RuntimeMode,
+  normalizeRuntimeMode,
   ThreadId,
   type ModelSelection as ModelSelectionType,
   type ProjectId as ProjectIdType,
@@ -104,7 +105,7 @@ export function resolveQueuedThreadSettings(
   );
   return {
     modelSelection,
-    runtimeMode: message.runtimeMode ?? thread.runtimeMode,
+    runtimeMode: normalizeRuntimeMode(message.runtimeMode ?? thread.runtimeMode),
     interactionMode: resolveProviderInteractionMode(
       provider,
       message.interactionMode ?? thread.interactionMode,
@@ -129,7 +130,12 @@ export function encodeQueuedThreadMessage(message: QueuedThreadMessage): unknown
 
 export function decodeQueuedThreadMessage(value: unknown): QueuedThreadMessage {
   const { schemaVersion: _, ...message } = decodeStoredQueuedThreadMessage(value);
-  return message;
+  return {
+    ...message,
+    ...(message.runtimeMode !== undefined
+      ? { runtimeMode: normalizeRuntimeMode(message.runtimeMode) }
+      : {}),
+  };
 }
 
 export function groupQueuedThreadMessages(

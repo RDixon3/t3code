@@ -54,11 +54,6 @@ await replace(
 );
 await replace(
   "apps/desktop/src/app/DesktopEnvironment.ts",
-  'const APP_BASE_NAME = "T3 Code";',
-  'const APP_BASE_NAME = "CoCo";',
-);
-await replace(
-  "apps/desktop/src/app/DesktopEnvironment.ts",
   'isDevelopment ? "t3code-dev" : "t3code";',
   'isDevelopment ? "coco-dev" : "coco";',
 );
@@ -98,12 +93,8 @@ await writeFile(
   'import "./cocoReleaseBootstrap.ts";\n' + (await readFile(mainPath, "utf8")),
 );
 
-// Original vector artwork, rendered through the existing Sharp dependency.
-const svg =
-  Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-<rect x="56" y="56" width="912" height="912" rx="208" fill="#171717"/>
-<path d="M700 303 A290 290 0 1 0 700 721" fill="none" stroke="#fd5108" stroke-width="116" stroke-linecap="round"/>
-<circle cx="732" cy="512" r="58" fill="#ffffff"/></svg>`);
+// Reuse the same CoCo artwork as the source app.
+const svg = await readFile(path.join(root, "assets/coco/icon.svg"));
 await sharp(svg).png().toFile(path.join(root, "apps/desktop/resources/coco-icon.png"));
 await writeFile(
   path.join(root, "apps/desktop/resources/coco-icon.ico"),

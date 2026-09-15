@@ -85,7 +85,7 @@ The explicit data directory keeps this test environment separate from an install
 This directory stores runtime data under its `userdata` subdirectory.
 
 The launcher starts the development services and desktop window. Keep its terminal open.
-The source desktop window can identify itself as **T3 Code (Dev)**. Packaged release branding is a separate build step.
+The source desktop window identifies itself as **CoCo (Dev)**. Packaged releases use the same CoCo artwork and a separate application identity and data directory.
 
 Make sure that these results occur:
 

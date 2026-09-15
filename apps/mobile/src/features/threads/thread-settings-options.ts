@@ -29,11 +29,6 @@ export const RUNTIME_MODE_CHOICES: ReadonlyArray<{
     label: "Auto",
     description: "Supported providers approve routine actions; others still ask.",
   },
-  {
-    mode: "full-access",
-    label: "Full access",
-    description: "Allow commands and edits without prompts.",
-  },
 ];
 
 export function selectableChoices(

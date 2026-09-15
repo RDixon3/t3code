@@ -266,9 +266,8 @@ The provider remains fixed for that conversation. Start a new chat to change bet
 | **Supervised**        | Requests approval for commands and file changes. Some read-only actions can proceed.   |
 | **Auto-accept edits** | Permits file edits automatically. Other actions can still require approval.            |
 | **Auto**              | Uses the provider's automatic review for routine actions and asks about other actions. |
-| **Full access**       | Permits commands and edits without normal approval prompts.                            |
 
-The default for new threads is **Full access**. A thread created from another thread inherits its mode.
+The default for new threads is **Auto**. A thread created from another thread inherits its mode. Previously saved Full Access selections now use Auto; Full Access is unavailable for every provider.
 
 Access mode does not supply Jira, ServiceNow, or repository credentials. The agent can still ask a question about your task.
 

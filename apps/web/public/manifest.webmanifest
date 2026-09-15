@@ -1,5 +1,7 @@
 {
   "id": "/",
+  "name": "CoCo",
+  "short_name": "CoCo",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

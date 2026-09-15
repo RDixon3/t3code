@@ -6,6 +6,7 @@ import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   MessageId,
+  normalizeRuntimeMode,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   type EnvironmentId,
   type ModelSelection,
@@ -206,7 +207,9 @@ export function useThreadComposerState() {
   const selectedThreadQueueCount = selectedThreadQueuedMessages.length;
   const selectedThread = selectedThreadDetail ?? selectedThreadShell;
   const modelSelection = selectedDraft?.modelSelection ?? selectedThread?.modelSelection ?? null;
-  const runtimeMode = selectedDraft?.runtimeMode ?? selectedThread?.runtimeMode ?? null;
+  const runtimeMode = normalizeRuntimeMode(
+    selectedDraft?.runtimeMode ?? selectedThread?.runtimeMode,
+  );
   const selectedProvider = selectedEnvironmentRuntime?.serverConfig?.providers.find(
     (provider) => provider.instanceId === modelSelection?.instanceId,
   );
@@ -398,7 +401,7 @@ export function useThreadComposerState() {
       text,
       attachments,
       modelSelection,
-      runtimeMode: draft.runtimeMode ?? thread.runtimeMode,
+      runtimeMode: normalizeRuntimeMode(draft.runtimeMode ?? thread.runtimeMode),
       interactionMode: resolveProviderInteractionMode(
         provider,
         draft.interactionMode ?? thread.interactionMode,

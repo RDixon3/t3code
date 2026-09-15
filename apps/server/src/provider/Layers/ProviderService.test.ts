@@ -2697,6 +2697,41 @@ routing.layer("ProviderServiceLive routing", (it) => {
     }),
   );
 
+  it.effect("normalizes legacy Full Access at session start and persisted recovery", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService.ProviderService;
+      const directory = yield* ProviderSessionDirectory.ProviderSessionDirectory;
+      const threadId = asThreadId("thread-legacy-full-access");
+      const initial = yield* provider.startSession(threadId, {
+        providerInstanceId: codexInstanceId,
+        threadId,
+        cwd: fixtureCwd("project-send-turn"),
+        runtimeMode: "full-access",
+      });
+      assert.equal(initial.runtimeMode, "auto");
+      assert.equal(routing.codex.startSession.mock.lastCall?.[0].runtimeMode, "auto");
+      yield* routing.codex.stopAll();
+      yield* directory.upsert({
+        threadId,
+        provider: CODEX_DRIVER,
+        providerInstanceId: codexInstanceId,
+        status: "stopped",
+        runtimeMode: "full-access",
+        resumeCursor: initial.resumeCursor,
+      });
+      routing.codex.startSession.mockClear();
+      yield* provider.sendTurn({ threadId, input: "resume", attachments: [] });
+      assert.equal(routing.codex.startSession.mock.calls.length, 1);
+      assert.equal(routing.codex.startSession.mock.lastCall?.[0].runtimeMode, "auto");
+      assert.deepEqual(
+        routing.codex.startSession.mock.lastCall?.[0].resumeCursor,
+        initial.resumeCursor,
+      );
+      const binding = yield* directory.getBinding(threadId);
+      assert.equal(Option.getOrThrow(binding).runtimeMode, "auto");
+    }),
+  );
+
   it.effect("recovers stale sessions for sendTurn using persisted cwd", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService.ProviderService;
@@ -3612,7 +3647,7 @@ turnAnalytics.layer("ProviderServiceLive turn analytics", (it) => {
         model: "gpt-5.6-sol",
         effort: "high",
         interactionMode: "plan",
-        runtimeMode: "full-access",
+        runtimeMode: "auto",
         mixedModels: false,
         durationMs: 40,
         terminalStatus: "completed",

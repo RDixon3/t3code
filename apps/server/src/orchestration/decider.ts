@@ -1,5 +1,6 @@
 import {
   EventId,
+  normalizeRuntimeMode,
   MAX_SCRIPT_ID_LENGTH,
   SCRIPT_RUN_COMMAND_PATTERN,
   MessageId,
@@ -375,7 +376,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           title: command.title,
           modelSelection: command.modelSelection,
           ...(command.cocoAgent ? { cocoAgent: command.cocoAgent } : {}),
-          runtimeMode: command.runtimeMode,
+          runtimeMode: normalizeRuntimeMode(command.runtimeMode),
           interactionMode: command.interactionMode,
           branch: command.branch,
           worktreePath: command.worktreePath,
@@ -1020,7 +1021,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         type: "thread.runtime-mode-set",
         payload: {
           threadId: command.threadId,
-          runtimeMode: command.runtimeMode,
+          runtimeMode: normalizeRuntimeMode(command.runtimeMode),
           updatedAt: occurredAt,
         },
       };
@@ -1121,7 +1122,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
             ? { modelSelection: command.modelSelection }
             : {}),
           ...(command.titleSeed !== undefined ? { titleSeed: command.titleSeed } : {}),
-          runtimeMode: targetThread.runtimeMode,
+          runtimeMode: normalizeRuntimeMode(targetThread.runtimeMode),
           interactionMode: targetThread.interactionMode,
           ...(sourceProposedPlan !== undefined ? { sourceProposedPlan } : {}),
           createdAt: command.createdAt,

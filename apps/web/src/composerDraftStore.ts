@@ -13,6 +13,7 @@ import {
   PreviewAnnotationPayloadSchema,
   type PreviewAnnotationPayload,
   RuntimeMode,
+  normalizeRuntimeMode,
   type ServerProvider,
   type ScopedProjectRef,
   type ScopedThreadRef,
@@ -1618,7 +1619,7 @@ function createDraftThreadState(
           }
         : {}),
     createdAt: options?.createdAt ?? existingThread?.createdAt ?? new Date().toISOString(),
-    runtimeMode: options?.runtimeMode ?? existingThread?.runtimeMode ?? DEFAULT_RUNTIME_MODE,
+    runtimeMode: normalizeRuntimeMode(options?.runtimeMode ?? existingThread?.runtimeMode),
     interactionMode:
       options?.interactionMode ?? existingThread?.interactionMode ?? DEFAULT_INTERACTION_MODE,
     branch: nextBranch,
@@ -1803,7 +1804,7 @@ function normalizePersistedDraftThreads(
             ? createdAt
             : new Date().toISOString(),
         runtimeMode: isRuntimeMode(candidateDraftThread.runtimeMode)
-          ? candidateDraftThread.runtimeMode
+          ? normalizeRuntimeMode(candidateDraftThread.runtimeMode)
           : DEFAULT_RUNTIME_MODE,
         interactionMode:
           candidateDraftThread.interactionMode === "plan" ||
@@ -1959,7 +1960,7 @@ function normalizePersistedDraftsByThreadId(
       : [];
     const contextItems = normalizeContextItems(draftCandidate.contextItems);
     const runtimeMode = isRuntimeMode(draftCandidate.runtimeMode)
-      ? draftCandidate.runtimeMode
+      ? normalizeRuntimeMode(draftCandidate.runtimeMode)
       : null;
     const interactionMode =
       draftCandidate.interactionMode === "plan" || draftCandidate.interactionMode === "default"
@@ -2510,7 +2511,9 @@ function toHydratedThreadDraft(
     modelSelectionByProvider,
     activeProvider,
     ...(persistedDraft.modelSelectionExplicit ? { modelSelectionExplicit: true } : {}),
-    runtimeMode: persistedDraft.runtimeMode ?? null,
+    runtimeMode: persistedDraft.runtimeMode
+      ? normalizeRuntimeMode(persistedDraft.runtimeMode)
+      : null,
     interactionMode: persistedDraft.interactionMode ?? null,
   };
 }
@@ -2531,7 +2534,7 @@ function toHydratedDraftThreadState(
         ),
       ),
     createdAt: persistedDraftThread.createdAt,
-    runtimeMode: persistedDraftThread.runtimeMode,
+    runtimeMode: normalizeRuntimeMode(persistedDraftThread.runtimeMode),
     interactionMode: persistedDraftThread.interactionMode,
     branch: persistedDraftThread.branch,
     worktreePath: persistedDraftThread.worktreePath,
@@ -2824,7 +2827,7 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 options.createdAt === undefined
                   ? existing.createdAt
                   : options.createdAt || existing.createdAt,
-              runtimeMode: options.runtimeMode ?? existing.runtimeMode,
+              runtimeMode: normalizeRuntimeMode(options.runtimeMode ?? existing.runtimeMode),
               interactionMode: options.interactionMode ?? existing.interactionMode,
               branch: nextBranch,
               worktreePath: nextWorktreePath,
@@ -3273,7 +3276,9 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           if (threadKey.length === 0) {
             return;
           }
-          const nextRuntimeMode = isRuntimeMode(runtimeMode) ? runtimeMode : null;
+          const nextRuntimeMode = isRuntimeMode(runtimeMode)
+            ? normalizeRuntimeMode(runtimeMode)
+            : null;
           set((state) => {
             const existing = state.draftsByThreadKey[threadKey];
             if (!existing && nextRuntimeMode === null) {

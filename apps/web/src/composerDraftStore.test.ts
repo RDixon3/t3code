@@ -1171,7 +1171,7 @@ describe("composerDraftStore project draft thread mapping", () => {
       branch: "feature/test",
       worktreePath: "/tmp/worktree-test",
       envMode: "worktree",
-      runtimeMode: "full-access",
+      runtimeMode: "auto",
       interactionMode: "default",
       createdAt: "2026-01-01T00:00:00.000Z",
     });
@@ -1182,10 +1182,41 @@ describe("composerDraftStore project draft thread mapping", () => {
       branch: "feature/test",
       worktreePath: "/tmp/worktree-test",
       envMode: "worktree",
-      runtimeMode: "full-access",
+      runtimeMode: "auto",
       interactionMode: "default",
       createdAt: "2026-01-01T00:00:00.000Z",
     });
+  });
+
+  it("normalizes saved Full Access drafts to Auto without losing their content", () => {
+    const store = useComposerDraftStore.getState();
+    store.setProjectDraftThreadId(projectRef, draftId, { threadId });
+    store.setPrompt(draftId, "Keep this prompt");
+    const persisted = partializeComposerDraftStoreState(useComposerDraftStore.getState());
+    const hydrated = useComposerDraftStore.persist.getOptions().merge?.(
+      {
+        ...persisted,
+        draftsByThreadKey: {
+          ...persisted.draftsByThreadKey,
+          [draftId]: { ...persisted.draftsByThreadKey[draftId], runtimeMode: "full-access" },
+        },
+        draftThreadsByThreadKey: {
+          ...persisted.draftThreadsByThreadKey,
+          [draftId]: { ...persisted.draftThreadsByThreadKey[draftId], runtimeMode: "full-access" },
+        },
+      },
+      useComposerDraftStore.getState(),
+    );
+
+    expect(hydrated?.draftThreadsByThreadKey[draftId]?.runtimeMode).toBe("auto");
+    expect(hydrated?.draftsByThreadKey[draftId]).toMatchObject({
+      prompt: "Keep this prompt",
+      runtimeMode: "auto",
+    });
+    store.setRuntimeMode(draftId, "full-access");
+    expect(store.getComposerDraft(draftId)?.runtimeMode).toBe("auto");
+    store.setRuntimeMode(draftId, "approval-required");
+    expect(store.getComposerDraft(draftId)?.runtimeMode).toBe("approval-required");
   });
 
   it("removes a draft's previous project mapping when retargeted in place", () => {

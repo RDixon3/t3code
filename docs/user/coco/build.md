@@ -68,11 +68,10 @@ Open the access picker beside the model controls.
 | **Supervised**        | The provider asks before commands and file changes.                               |
 | **Auto-accept edits** | The provider can approve edits automatically. Other actions can require approval. |
 | **Auto**              | A supported provider can approve routine actions. Other providers still ask.      |
-| **Full access**       | Commands and edits can proceed without approval prompts.                          |
 
 The provider determines the exact approval behavior. A mode name does not grant access that the account or operating system prevents.
 
-Use **Supervised** when you want to examine each proposed action. Use **Full access** only when the agent can perform the requested work without separate prompts.
+**Auto** is the default. Use **Supervised** when you want to examine each proposed action. Previously saved Full Access selections now use Auto.
 
 Project selections give the agent a target. They do not authorize a deployment or restrict the account to that target.
 

@@ -7,6 +7,7 @@ import { CommandId, ProjectId, ThreadId } from "./baseSchemas.ts";
 import {
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
+  normalizeRuntimeMode,
   type ChatImageAttachment,
   ClientOrchestrationCommand,
   ModelSelection,
@@ -68,6 +69,16 @@ const decodeOrchestrationEvent = Schema.decodeUnknownEffect(OrchestrationEvent);
 const decodeThreadMetaUpdatedPayload = Schema.decodeUnknownEffect(ThreadMetaUpdatedPayload);
 const decodeDispatchCommandError = Schema.decodeUnknownEffect(OrchestrationDispatchCommandError);
 const decodeSnapShotAccessibility = Schema.decodeUnknownEffect(SnapShotAccessibility);
+
+it("uses Auto for new and legacy Full Access selections", () => {
+  assert.strictEqual(DEFAULT_RUNTIME_MODE, "auto");
+  assert.strictEqual(normalizeRuntimeMode(undefined), "auto");
+  assert.strictEqual(normalizeRuntimeMode(null), "auto");
+  assert.strictEqual(normalizeRuntimeMode("full-access"), "auto");
+  for (const mode of ["approval-required", "auto-accept-edits", "auto"] as const) {
+    assert.strictEqual(normalizeRuntimeMode(mode), mode);
+  }
+});
 
 it.effect("decodes a dispatch error after its bootstrap thread was deleted", () =>
   Effect.gen(function* () {

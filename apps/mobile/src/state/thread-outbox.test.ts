@@ -386,6 +386,25 @@ describe("thread outbox", () => {
     });
   });
 
+  it("uses Auto for legacy queued or inherited Full Access settings", () => {
+    const message = queuedMessage({
+      messageId: "message-legacy-access",
+      createdAt: "2026-06-08T10:00:01.000Z",
+    });
+    const fullAccessMessage = { ...message, runtimeMode: "full-access" as const };
+    const thread = {
+      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
+      runtimeMode: "full-access" as const,
+      interactionMode: "default" as const,
+    };
+    expect(decodeQueuedThreadMessage(encodeQueuedThreadMessage(fullAccessMessage))).toEqual({
+      ...message,
+      runtimeMode: "auto",
+    });
+    expect(resolveQueuedThreadSettings(message, thread).runtimeMode).toBe("auto");
+    expect(resolveQueuedThreadSettings(fullAccessMessage, thread).runtimeMode).toBe("auto");
+  });
+
   it("compares model options as part of the queued settings change", () => {
     const base = {
       instanceId: ProviderInstanceId.make("codex"),
