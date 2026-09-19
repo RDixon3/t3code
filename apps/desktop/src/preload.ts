@@ -49,6 +49,16 @@ function unwrapEnsureSshEnvironmentResult(result: unknown) {
 }
 
 contextBridge.exposeInMainWorld("desktopBridge", {
+  getV0ConnectionStatus: () => ipcRenderer.invoke(IpcChannels.V0_STATUS_CHANNEL),
+  connectV0: () => ipcRenderer.invoke(IpcChannels.V0_CONNECT_CHANNEL),
+  testV0Connection: () => ipcRenderer.invoke(IpcChannels.V0_TEST_CHANNEL),
+  cancelV0Connection: () => ipcRenderer.invoke(IpcChannels.V0_CANCEL_CHANNEL),
+  disconnectV0: () => ipcRenderer.invoke(IpcChannels.V0_DISCONNECT_CHANNEL),
+  onV0ConnectionChanged: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(IpcChannels.V0_CHANGED_CHANNEL, handler);
+    return () => ipcRenderer.removeListener(IpcChannels.V0_CHANGED_CHANNEL, handler);
+  },
   deleteServiceNowSdkProfile: (profile) =>
     ipcRenderer.invoke(IpcChannels.DELETE_SERVICENOW_SDK_PROFILE_CHANNEL, profile),
   addBasicServiceNowSdkProfile: (input) =>

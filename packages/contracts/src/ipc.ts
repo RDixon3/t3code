@@ -1307,6 +1307,15 @@ export const JiraConnectionStatusSchema = Schema.Struct({
 });
 export type JiraConnectionStatus = typeof JiraConnectionStatusSchema.Type;
 
+export const V0ConnectionStatusSchema = Schema.Struct({
+  connected: Schema.Boolean,
+  checkedAt: Schema.NullOr(Schema.String),
+  needsReauthentication: Schema.optionalKey(Schema.Boolean),
+  diagnostics: Schema.optionalKey(Schema.String),
+  diagnosticsPath: Schema.optionalKey(Schema.String),
+});
+export type V0ConnectionStatus = typeof V0ConnectionStatusSchema.Type;
+
 export const SERVICENOW_OAUTH_CALLBACK = "http://127.0.0.1:17842/servicenow/callback";
 export const ServiceNowConnectionConfigSchema = Schema.Struct({
   instanceUrl: Schema.String,
@@ -1321,6 +1330,12 @@ export const ServiceNowConnectionStatusSchema = Schema.Struct({
 export type ServiceNowConnectionStatus = typeof ServiceNowConnectionStatusSchema.Type;
 
 export interface DesktopBridge {
+  getV0ConnectionStatus?: () => Promise<V0ConnectionStatus>;
+  connectV0?: () => Promise<V0ConnectionStatus>;
+  testV0Connection?: () => Promise<V0ConnectionStatus>;
+  cancelV0Connection?: () => Promise<V0ConnectionStatus>;
+  disconnectV0?: () => Promise<V0ConnectionStatus>;
+  onV0ConnectionChanged?: (listener: () => void) => () => void;
   getServiceNowConnectionStatus?: () => Promise<ServiceNowConnectionStatus>;
   connectServiceNow?: (config: ServiceNowConnectionConfig) => Promise<ServiceNowConnectionStatus>;
   testServiceNowConnection?: () => Promise<ServiceNowConnectionStatus>;

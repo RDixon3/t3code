@@ -433,6 +433,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     ],
   },
   {
+    id: "v0",
+    title: "v0 (Beta)",
+    to: "/settings/integrations",
+    searchTerms: ["Vercel prototype MCP OAuth SSO connect reconnect diagnostics"],
+  },
+  {
     id: "browser-default-profile",
     title: "Default browser profile",
     to: "/settings/integrations",

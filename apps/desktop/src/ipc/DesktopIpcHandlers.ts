@@ -2,6 +2,7 @@ import * as Effect from "effect/Effect";
 
 import * as DesktopIpc from "./DesktopIpc.ts";
 import { installJiraIpc } from "./methods/jira.ts";
+import { installV0Ipc } from "./methods/v0.ts";
 import { installServiceNowIpc } from "./methods/serviceNowConnection.ts";
 import {
   checkServiceNowSdk,
@@ -82,6 +83,7 @@ import { sdkAuth } from "../integrations/serviceNowSdkAuth.ts";
 export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers")(function* () {
   const ipc = yield* DesktopIpc.DesktopIpc;
   yield* installJiraIpc();
+  yield* installV0Ipc();
   yield* installServiceNowIpc();
   yield* ipc.handle(checkServiceNowSdk);
   yield* ipc.handle(listServiceNowSdkProfiles);

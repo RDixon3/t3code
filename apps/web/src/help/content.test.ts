@@ -9,6 +9,7 @@ const settingsSources: Record<string, readonly string[]> = {
   "/settings/general": ["SettingsPanels.tsx", "settingsSearch.ts"],
   "/settings/integrations": [
     "JiraSettings.tsx",
+    "V0Settings.tsx",
     "ServiceNowSdkSettings.tsx",
     "ServiceNowConnectionSettings.tsx",
   ],

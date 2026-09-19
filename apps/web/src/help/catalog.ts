@@ -72,6 +72,13 @@ export const HELP_TOPICS = [
       "change servicenow account sdk profile oauth basic password delete update pursuit instance",
   },
   {
+    id: "v0",
+    title: "Connect v0",
+    category: "Build & chat",
+    summary: "Connect a v0 account and diagnose its beta connection.",
+    aliases: "vercel v0 prototype oauth sso sign in reconnect mcp beta diagnostics",
+  },
+  {
     id: "agents",
     title: "Agents and skills",
     category: "Agents & Skills",

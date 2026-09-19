@@ -101,6 +101,7 @@ import { BrowserImportWizard, type WizardTarget } from "./BrowserImportWizard";
 import type { ImportOutcome } from "./browserImportWizard.logic";
 import { ServiceNowSdkSettings } from "./ServiceNowSdkSettings";
 import { JiraSettings } from "./JiraSettings";
+import { V0Settings } from "./V0Settings";
 
 const FILL_VALUE = "fill";
 const RESPONSIVE_VALUE = "responsive";
@@ -1160,6 +1161,7 @@ export function IntegrationsSettingsPanel() {
   return (
     <SettingsPageContainer>
       <JiraSettings />
+      <V0Settings />
       <ServiceNowSdkSettings />
       <SettingsSection id="browser" title="Browser">
         {/* Server-authoritative, so it stays editable on any client anchored to
