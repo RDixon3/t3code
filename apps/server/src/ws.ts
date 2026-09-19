@@ -1,3 +1,4 @@
+import * as V0AgentBroker from "./mcp/V0AgentBroker.ts";
 import { TextGenerationError, CoCoError } from "@t3tools/contracts";
 import { makeTextGenerationFromRegistry } from "./textGeneration/TextGeneration.ts";
 import { validateFocus } from "./coco/focus.ts";
@@ -479,6 +480,7 @@ const makeWsRpcLayer = (
   clientOrigin: OrchestrationClientOrigin,
   clientAnalyticsProps: Readonly<Record<string, unknown>>,
   previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
+  v0AgentBroker: V0AgentBroker.V0AgentBroker["Service"],
   jiraAgentBroker: JiraAgentBroker.JiraAgentBroker["Service"],
 ) =>
   WsRpcGroup.toLayer(
@@ -2746,6 +2748,18 @@ const makeWsRpcLayer = (
             jiraAgentBroker.respond(currentSessionId, input),
             { "rpc.aggregate": "jira-agent" },
           ),
+        [WS_METHODS.v0AgentConnect]: (input) =>
+          observeRpcStream(
+            WS_METHODS.v0AgentConnect,
+            v0AgentBroker.connect(currentSessionId, input),
+            { "rpc.aggregate": "v0-agent" },
+          ),
+        [WS_METHODS.v0AgentRespond]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.v0AgentRespond,
+            v0AgentBroker.respond(currentSessionId, input),
+            { "rpc.aggregate": "v0-agent" },
+          ),
         [WS_METHODS.previewAutomationConnect]: (input) =>
           observeRpcStreamEffect(
             WS_METHODS.previewAutomationConnect,
@@ -2988,6 +3002,7 @@ const makeWsRpcLayer = (
 export const websocketRpcRouteLayer = Layer.unwrap(
   Effect.gen(function* () {
     const previewAutomationBroker = yield* PreviewAutomationBroker.PreviewAutomationBroker;
+    const v0AgentBroker = yield* V0AgentBroker.V0AgentBroker;
     const jiraAgentBroker = yield* JiraAgentBroker.JiraAgentBroker;
     const baseServerSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
     const config = yield* ServerConfig.ServerConfig;
@@ -3049,6 +3064,7 @@ export const websocketRpcRouteLayer = Layer.unwrap(
               clientOrigin,
               clientAnalyticsProps,
               previewAutomationBroker,
+              v0AgentBroker,
               jiraAgentBroker,
             ).pipe(
               Layer.provideMerge(RpcSerialization.layerJson),

@@ -1,4 +1,5 @@
 import { FocusScheduler } from "./components/workspace/FocusScheduler";
+import { V0AgentHost } from "./components/workspace/V0AgentHost";
 import { JiraAgentHost } from "./components/workspace/JiraAgentHost";
 import { RouterProvider } from "@tanstack/react-router";
 
@@ -19,6 +20,7 @@ export function AppRoot({ router }: { readonly router: AppRouter }) {
       <RouterProvider router={router} />
       <PreviewAutomationHosts />
       <JiraAgentHost />
+      <V0AgentHost />
       <FocusScheduler />
       <ElectronBrowserHost />
       <QuitHoldOverlay />

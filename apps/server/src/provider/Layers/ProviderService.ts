@@ -901,11 +901,11 @@ const makeProviderService = Effect.fn("makeProviderService")(function* (
         yield* revokeMcpCredential(threadId);
         yield* Effect.sync(() => McpProviderSession.clearMcpProviderSession(threadId));
       }
-      // Jira shares the transport, but never grants browser access implicitly.
+      // Integrations share the transport, but never grant browser access implicitly.
       const credential = yield* issueMcpCredential({
         threadId,
         providerInstanceId,
-        capabilities: browserAccess ? ["preview", "jira"] : ["jira"],
+        capabilities: browserAccess ? ["preview", "jira", "v0"] : ["jira", "v0"],
       });
       if (credential) {
         yield* Effect.sync(() => McpProviderSession.setMcpProviderSession(credential.config));

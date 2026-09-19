@@ -140,6 +140,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.previewClose]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewList]: AuthOrchestrationReadScope,
   [WS_METHODS.previewReportStatus]: AuthOrchestrationOperateScope,
+  [WS_METHODS.v0AgentConnect]: AuthOrchestrationOperateScope,
+  [WS_METHODS.v0AgentRespond]: AuthOrchestrationOperateScope,
   [WS_METHODS.jiraAgentConnect]: AuthOrchestrationOperateScope,
   [WS_METHODS.jiraAgentRespond]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewAutomationConnect]: AuthOrchestrationOperateScope,

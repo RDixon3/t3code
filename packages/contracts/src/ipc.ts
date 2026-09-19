@@ -1330,6 +1330,12 @@ export const ServiceNowConnectionStatusSchema = Schema.Struct({
 export type ServiceNowConnectionStatus = typeof ServiceNowConnectionStatusSchema.Type;
 
 export interface DesktopBridge {
+  listV0AgentTools?: () => Promise<ReadonlyArray<Record<string, unknown>>>;
+  callV0AgentTool?: (input: {
+    name: string;
+    expiresAt: number;
+    arguments: Record<string, unknown>;
+  }) => Promise<unknown>;
   getV0ConnectionStatus?: () => Promise<V0ConnectionStatus>;
   connectV0?: () => Promise<V0ConnectionStatus>;
   testV0Connection?: () => Promise<V0ConnectionStatus>;

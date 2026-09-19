@@ -43,3 +43,4 @@ export * from "./usage.ts";
 export * from "./rpc.ts";
 
 export * from "./jiraAgent.ts";
+export * from "./v0Agent.ts";

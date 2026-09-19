@@ -80,6 +80,53 @@ export const installV0Ipc = Effect.fn("desktop.ipc.installV0")(function* () {
       }),
     ).catch(() => {});
 
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.V0_AGENT_TOOLS_CHANNEL,
+      payload: Schema.Void,
+      result: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
+      handler: () =>
+        Effect.tryPromise({
+          try: async () => {
+            try {
+              return await connection.listAgentTools();
+            } finally {
+              await saveDiagnostics();
+            }
+          },
+          catch: () =>
+            new V0ConnectionError({
+              message: "Could not load v0 tools. Test the connection in Settings.",
+            }),
+        }),
+    }),
+  );
+  yield* ipc.handle(
+    DesktopIpc.makeIpcMethod({
+      channel: Channels.V0_AGENT_CALL_CHANNEL,
+      payload: Schema.Struct({
+        name: Schema.String,
+        expiresAt: Schema.Finite,
+        arguments: Schema.Record(Schema.String, Schema.Unknown),
+      }),
+      result: Schema.Unknown,
+      handler: (input) =>
+        Effect.tryPromise({
+          try: async () => {
+            try {
+              return await connection.callAgentTool(input);
+            } finally {
+              await saveDiagnostics();
+            }
+          },
+          catch: () =>
+            new V0ConnectionError({
+              message:
+                "v0 request failed. Generation may have completed; inspect the existing v0 chat before retrying. Test the connection in Settings.",
+            }),
+        }),
+    }),
+  );
   for (const [channel, action] of [
     [Channels.V0_STATUS_CHANNEL, "status"],
     [Channels.V0_CONNECT_CHANNEL, "connect"],

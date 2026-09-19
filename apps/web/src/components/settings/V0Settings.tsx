@@ -1,3 +1,5 @@
+import { useAtomValue } from "@effect/atom-react";
+import { v0AgentStatus } from "../../state/v0Agent";
 import type { V0ConnectionStatus } from "@t3tools/contracts";
 import { useEffect, useRef, useState } from "react";
 import { HelpLink } from "../help/HelpLink";
@@ -8,6 +10,7 @@ type ConnectionAction = "connect" | "test" | "cancel" | "disconnect";
 
 export function V0Settings() {
   const bridge = window.desktopBridge;
+  const agentStatus = useAtomValue(v0AgentStatus);
   const available = Boolean(
     bridge?.connectV0 &&
     bridge?.getV0ConnectionStatus &&
@@ -189,8 +192,9 @@ export function V0Settings() {
           </>
         )}
         <p className="text-xs text-muted-foreground">
-          Chat integration is pending compatibility verification. Using v0 in chat is not available
-          yet.
+          {available
+            ? agentStatus
+            : "Use a connected CoCo desktop to make v0 tools available to chats on its local environment."}
         </p>
       </div>
     </SettingsSection>

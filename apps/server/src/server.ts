@@ -1,3 +1,4 @@
+import * as V0AgentBroker from "./mcp/V0AgentBroker.ts";
 import * as CoCoService from "./coco/service.ts";
 import * as JiraAgentBroker from "./mcp/JiraAgentBroker.ts";
 import { EnvironmentHttpApi, ProviderDriverKind } from "@t3tools/contracts";
@@ -561,6 +562,7 @@ export const makeRoutesLayer = Layer.mergeAll(
   Layer.provide(PullRequestServiceLive),
   Layer.provide(PreviewAutomationBroker.layer),
   Layer.provide(JiraAgentBroker.layer),
+  Layer.provide(V0AgentBroker.layer),
   Layer.provide(CoCoService.layer),
   Layer.provide(ServerSelfUpdate.layer.pipe(Layer.provide(DesktopAppUpdateLayerLive))),
   Layer.provide(commandReadinessLayer),

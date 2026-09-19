@@ -49,6 +49,8 @@ function unwrapEnsureSshEnvironmentResult(result: unknown) {
 }
 
 contextBridge.exposeInMainWorld("desktopBridge", {
+  listV0AgentTools: () => ipcRenderer.invoke(IpcChannels.V0_AGENT_TOOLS_CHANNEL),
+  callV0AgentTool: (input) => ipcRenderer.invoke(IpcChannels.V0_AGENT_CALL_CHANNEL, input),
   getV0ConnectionStatus: () => ipcRenderer.invoke(IpcChannels.V0_STATUS_CHANNEL),
   connectV0: () => ipcRenderer.invoke(IpcChannels.V0_CONNECT_CHANNEL),
   testV0Connection: () => ipcRenderer.invoke(IpcChannels.V0_TEST_CHANNEL),

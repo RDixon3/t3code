@@ -73,9 +73,9 @@ export const HELP_TOPICS = [
   },
   {
     id: "v0",
-    title: "Connect v0",
+    title: "Prototype with v0",
     category: "Build & chat",
-    summary: "Connect a v0 account and diagnose its beta connection.",
+    summary: "Connect v0 tools to chat, create visual prototypes, and revise them.",
     aliases: "vercel v0 prototype oauth sso sign in reconnect mcp beta diagnostics",
   },
   {

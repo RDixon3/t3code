@@ -4942,14 +4942,14 @@ describe("agent browser access", () => {
       return issued;
     });
 
-  // Jira credentials must never imply browser access.
-  it.effect("requests Jira-only access when agent browser access is off", () =>
+  // Integration credentials must never imply browser access.
+  it.effect("requests integration-only access when agent browser access is off", () =>
     Effect.gen(function* () {
       const issued = yield* startSessionWith(false, asThreadId("thread-browser-off"));
 
       assert.deepEqual(
         issued.map((request) => request.capabilities),
-        [["jira"]],
+        [["jira", "v0"]],
       );
     }).pipe(Effect.provide(NodeServices.layer)),
   );
@@ -4976,22 +4976,24 @@ describe("agent browser access", () => {
 
       assert.deepEqual(
         issued.map((request) => request.capabilities),
-        [["preview", "jira"]],
+        [["preview", "jira", "v0"]],
       );
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  it.effect("replaces browser access with Jira-only access when the project disables it", () =>
-    Effect.gen(function* () {
-      const threadId = asThreadId("thread-project-browser-off");
-      revokedThreads.length = 0;
-      const issued = yield* startSessionWith(true, threadId, false);
-      assert.deepEqual(
-        issued.map((request) => request.capabilities),
-        [["jira"]],
-      );
-      assert.deepEqual(revokedThreads, [threadId]);
-    }).pipe(Effect.provide(NodeServices.layer)),
+  it.effect(
+    "replaces browser access with integration-only access when the project disables it",
+    () =>
+      Effect.gen(function* () {
+        const threadId = asThreadId("thread-project-browser-off");
+        revokedThreads.length = 0;
+        const issued = yield* startSessionWith(true, threadId, false);
+        assert.deepEqual(
+          issued.map((request) => request.capabilities),
+          [["jira", "v0"]],
+        );
+        assert.deepEqual(revokedThreads, [threadId]);
+      }).pipe(Effect.provide(NodeServices.layer)),
   );
 
   it.effect("requests an MCP credential when the project overrides browser access to on", () =>
@@ -5000,7 +5002,7 @@ describe("agent browser access", () => {
       const issued = yield* startSessionWith(false, threadId, true);
       assert.deepEqual(
         issued.map((request) => request.capabilities),
-        [["preview", "jira"]],
+        [["preview", "jira", "v0"]],
       );
     }).pipe(Effect.provide(NodeServices.layer)),
   );

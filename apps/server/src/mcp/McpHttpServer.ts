@@ -1,3 +1,4 @@
+import * as V0AgentTools from "./V0AgentTools.ts";
 import * as JiraAgentTools from "./JiraAgentTools.ts";
 import * as NodeCrypto from "node:crypto";
 import * as Cause from "effect/Cause";
@@ -445,6 +446,8 @@ const McpTransportLive = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],
 }).pipe(Layer.provide(McpAuthMiddlewareLive));
 
-export const layer = Layer.merge(PreviewToolkitRegistrationLive, JiraAgentTools.registration).pipe(
-  Layer.provideMerge(McpTransportLive),
-);
+export const layer = Layer.mergeAll(
+  PreviewToolkitRegistrationLive,
+  JiraAgentTools.registration,
+  V0AgentTools.registration,
+).pipe(Layer.provideMerge(McpTransportLive));

@@ -1,3 +1,4 @@
+import { V0AgentError, V0AgentHost, V0AgentEvent, V0AgentResponse } from "./v0Agent.ts";
 import { ProjectId } from "./baseSchemas.ts";
 import { JiraIssuePageSchema } from "./ipc.ts";
 import { CoCoLibrary, CoCoError, CoCoFocusResult } from "./coco.ts";
@@ -313,6 +314,8 @@ export const WS_METHODS = {
   previewClose: "preview.close",
   previewList: "preview.list",
   previewReportStatus: "preview.reportStatus",
+  v0AgentConnect: "v0Agent.connect",
+  v0AgentRespond: "v0Agent.respond",
   jiraAgentConnect: "jiraAgent.connect",
   jiraAgentRespond: "jiraAgent.respond",
   previewAutomationConnect: "previewAutomation.connect",
@@ -1069,6 +1072,17 @@ const WsJiraAgentRespondRpc = Rpc.make(WS_METHODS.jiraAgentRespond, {
   error: Schema.Union([JiraAgentError, EnvironmentAuthorizationError]),
 });
 
+const WsV0AgentConnectRpc = Rpc.make(WS_METHODS.v0AgentConnect, {
+  payload: V0AgentHost,
+  success: V0AgentEvent,
+  stream: true,
+  error: Schema.Union([V0AgentError, EnvironmentAuthorizationError]),
+});
+const WsV0AgentRespondRpc = Rpc.make(WS_METHODS.v0AgentRespond, {
+  payload: V0AgentResponse,
+  error: Schema.Union([V0AgentError, EnvironmentAuthorizationError]),
+});
+
 const WsPreviewAutomationConnectRpc = Rpc.make(WS_METHODS.previewAutomationConnect, {
   payload: PreviewAutomationHost,
   success: PreviewAutomationStreamEvent,
@@ -1328,6 +1342,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsPreviewCloseRpc,
   WsPreviewListRpc,
   WsPreviewReportStatusRpc,
+  WsV0AgentConnectRpc,
+  WsV0AgentRespondRpc,
   WsJiraAgentConnectRpc,
   WsJiraAgentRespondRpc,
   WsPreviewAutomationConnectRpc,

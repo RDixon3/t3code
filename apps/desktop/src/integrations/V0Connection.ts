@@ -10,7 +10,11 @@ import {
   OAuthTokensSchema,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { V0ConnectionStatus } from "@t3tools/contracts";
+import {
+  isV0AgentToolName,
+  V0_AGENT_TIMEOUT_MS,
+  type V0ConnectionStatus,
+} from "@t3tools/contracts";
 import * as NodeCrypto from "node:crypto";
 import { listenForOAuth } from "./oauthCallback.ts";
 import { describeV0Error, makeV0Diagnostics, V0ConnectionError } from "./v0Diagnostics.ts";
@@ -148,7 +152,11 @@ export function makeV0Connection(deps: {
       }
     });
 
-  const run = (interactive: boolean): Promise<V0ConnectionStatus> => {
+  const run = (
+    interactive: boolean,
+    operation = probe,
+    timeout = interactive ? 300_000 : 60_000,
+  ): Promise<V0ConnectionStatus> => {
     if (stopping)
       return Promise.reject(new V0ConnectionError("v0 is disconnecting. Try again afterwards."));
     const expectedGeneration = generation;
@@ -158,10 +166,7 @@ export function makeV0Connection(deps: {
         if (generation !== expectedGeneration) throw new V0ConnectionError("v0 request cancelled.");
         const abort = new AbortController();
         active = abort;
-        const signal = AbortSignal.any([
-          abort.signal,
-          AbortSignal.timeout(interactive ? 300_000 : 60_000),
-        ]);
+        const signal = AbortSignal.any([abort.signal, AbortSignal.timeout(timeout)]);
         diagnostics.reset();
         checkedAt = null;
         stage = "credentials";
@@ -258,7 +263,7 @@ export function makeV0Connection(deps: {
             },
           };
           try {
-            await probe(provider, signal);
+            await operation(provider, signal);
           } catch (error) {
             if (!(error instanceof UnauthorizedError) || !redirected || !callback) throw error;
             stage = "OAuth token exchange";
@@ -266,14 +271,14 @@ export function makeV0Connection(deps: {
             diagnostics.protect(code);
             signal.throwIfAborted();
             await finishAuth(provider, code, signal);
-            await probe(provider, signal);
+            await operation(provider, signal);
           }
           signal.throwIfAborted();
           if (!credentials.tokens || !credentials.client)
             throw new V0ConnectionError("v0 did not complete authorization.");
           needsReauthentication = false;
           checkedAt = new Date().toISOString();
-          diagnostics.add("result", "MCP discovery passed.");
+          diagnostics.add("result", "MCP request completed.");
           return { connected: true, checkedAt, needsReauthentication: false };
         } catch (error) {
           diagnostics.add(
@@ -326,7 +331,83 @@ export function makeV0Connection(deps: {
     stopping = done;
     return done;
   };
+  const withClient = async <T>(
+    operation: (client: Client, signal: AbortSignal) => Promise<T>,
+    timeout = 60_000,
+  ) => {
+    let result!: T;
+    await run(
+      false,
+      async (provider, signal) => {
+        const client = new Client({ name: "coco-v0", version: "1.0.0" });
+        try {
+          stage = "initialize";
+          await client.connect(transport(provider, signal) as Transport, {
+            signal,
+            timeout: 30_000,
+          });
+          result = await operation(client, signal);
+        } finally {
+          await client.close();
+        }
+      },
+      timeout,
+    );
+    return result;
+  };
+  let agentToolNames = new Set<string>();
   return {
+    listAgentTools: () =>
+      withClient(async (client, signal) => {
+        const tools = [];
+        const cursors = new Set<string>();
+        let cursor: string | undefined;
+        do {
+          stage = "tools/list";
+          const page = await client.listTools(cursor ? { cursor } : {}, {
+            signal,
+            timeout: 30_000,
+          });
+          if (page.tools.some((tool) => !isV0AgentToolName(tool.name)))
+            throw new V0ConnectionError("v0 returned an unsupported tool name.");
+          tools.push(...page.tools);
+          cursor = page.nextCursor;
+          if (cursor && (cursors.has(cursor) || cursors.size >= 49))
+            throw new V0ConnectionError(
+              "v0 tool discovery repeated a cursor or exceeded 50 pages.",
+            );
+          if (cursor) cursors.add(cursor);
+        } while (cursor);
+        agentToolNames = new Set(tools.map((tool) => tool.name));
+        diagnostics.add(stage, `${tools.length} chat tools discovered.`);
+        return tools;
+      }),
+    callAgentTool: (input: {
+      name: string;
+      expiresAt: number;
+      arguments: Record<string, unknown>;
+    }) => {
+      if (!agentToolNames.has(input.name))
+        return Promise.reject(
+          new V0ConnectionError("v0 tool is unavailable. Test the connection in Settings."),
+        );
+      return withClient(async (client, signal) => {
+        const remaining = Math.min(V0_AGENT_TIMEOUT_MS, input.expiresAt - Date.now());
+        if (remaining <= 0) throw new V0ConnectionError("v0 request expired before execution.");
+        stage = `tools/call ${input.name}`;
+        // Never replay generation after an ambiguous failure. Return pending tasks and SSO links intact.
+        const result = await client.callTool(
+          { name: input.name, arguments: input.arguments },
+          undefined,
+          {
+            signal,
+            timeout: remaining,
+          },
+        );
+        diagnostics.add(stage, `isError=${Boolean(result.isError)}`);
+        return result;
+      }, V0_AGENT_TIMEOUT_MS);
+    },
     status,
     diagnostics: diagnostics.text,
     connect: () => run(true),

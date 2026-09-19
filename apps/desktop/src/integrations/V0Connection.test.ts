@@ -288,3 +288,70 @@ describe("v0 connection", () => {
     expect((await connection.status()).checkedAt).toBeNull();
   });
 });
+
+describe("v0 chat tools", () => {
+  it("forwards generation, pending tasks, previews and SSO results without changing them", async () => {
+    vi.spyOn(Client.prototype, "connect").mockResolvedValue(undefined);
+    vi.spyOn(Client.prototype, "close").mockResolvedValue(undefined);
+    const tools = ["createChat", "sendChatMessage", "getPreview", "resolveTask"].map((name) => ({
+      name,
+      inputSchema: { type: "object" as const },
+    }));
+    vi.spyOn(Client.prototype, "listTools").mockResolvedValue({ tools });
+    const result = {
+      content: [{ type: "text" as const, text: "SSO or task response" }],
+      structuredContent: {
+        chatId: "chat-1",
+        task: "plan-exit-response",
+        url: "https://v0.app/chat/example",
+      },
+    };
+    const call = vi.spyOn(Client.prototype, "callTool").mockResolvedValue(result);
+    const connection = makeV0Connection(fixture(saved).deps);
+    expect(await connection.listAgentTools()).toEqual(tools);
+    for (const name of tools.map((tool) => tool.name)) {
+      expect(
+        await connection.callAgentTool({
+          name,
+          expiresAt: Number.MAX_SAFE_INTEGER,
+          arguments: { chatId: "chat-1", message: "private prototype prompt" },
+        }),
+      ).toEqual(result);
+    }
+    expect(call).toHaveBeenCalledTimes(4);
+    expect(connection.diagnostics()).not.toContain("private prototype prompt");
+    expect(connection.diagnostics()).not.toContain("SSO or task response");
+  });
+  it("rejects unknown and expired calls, and never retries a failed generation", async () => {
+    vi.spyOn(Client.prototype, "connect").mockResolvedValue(undefined);
+    vi.spyOn(Client.prototype, "close").mockResolvedValue(undefined);
+    vi.spyOn(Client.prototype, "listTools").mockResolvedValue({
+      tools: [{ name: "createChat", inputSchema: { type: "object" } }],
+    });
+    const call = vi
+      .spyOn(Client.prototype, "callTool")
+      .mockRejectedValue(new Error("raw private response"));
+    const connection = makeV0Connection(fixture(saved).deps);
+    await connection.listAgentTools();
+    await expect(
+      connection.callAgentTool({
+        name: "unknown",
+        expiresAt: Number.MAX_SAFE_INTEGER,
+        arguments: {},
+      }),
+    ).rejects.toThrow("unavailable");
+    await expect(
+      connection.callAgentTool({ name: "createChat", expiresAt: 1, arguments: {} }),
+    ).rejects.toThrow("expired");
+    expect(call).not.toHaveBeenCalled();
+    await expect(
+      connection.callAgentTool({
+        name: "createChat",
+        expiresAt: Number.MAX_SAFE_INTEGER,
+        arguments: {},
+      }),
+    ).rejects.toThrow();
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(connection.diagnostics()).not.toContain("raw private response");
+  });
+});
